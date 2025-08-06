@@ -4,34 +4,11 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
+from .models import Form, FormField
 from .constants import HEADERS
 
 def send_form(url: str, content: dict[str, str]) -> None:
     pass
-
-
-@dataclass
-class FormField:
-    tag: str
-    name: Optional[str] = None
-    id: Optional[str] = None
-    type: Optional[str] = None
-    value: Optional[str] = None
-    placeholder: Optional[str] = None
-    required: bool = False
-    maxlength: Optional[str] = None
-    checked: Optional[bool] = None
-    selected_options: Optional[List[dict]] = None # List of dicts for options, as per original logic
-
-@dataclass
-class Form:
-    index: int
-    action: Optional[str] = None
-    method: str = "GET"
-    id: Optional[str] = None
-    className: Optional[List[str]] = None # className is a list in BeautifulSoup
-    action_absolute: Optional[str] = None
-    fields: List[FormField] = None
 
 
 def find_forms(url: str, html: str | None = None) -> List[Form]:

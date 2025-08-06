@@ -1,9 +1,9 @@
-POSSIBLE_FIELD_NAMES = {
+CONTACT_EXPANSION = {
     "first_name": ["first_name", "firstname", "fname", "name_first", "sei", "yourname"],
     "last_name": ["last_name", "lastname", "lname", "name_last", "mei"],
     "first_name_kana": ["first_name_kana", "firstname_kana", "seikana", "sei_kana"],
     "last_name_kana": ["last_name_kana", "lastname_kana", "meikana", "mei_kana"],
-    "name": ["name", "onamae", "namae"],
+    "name": ["name", "onamae", "namae", "your-name"],
     "kana": ["furigana", "hurigana", "kana"],
     "company_name": ["company", "company_name", "organization", "firm_name", "kaisha"],
     "department_name": ["department", "department_name", "div", "section", "busho"],
