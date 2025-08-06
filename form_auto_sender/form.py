@@ -1,15 +1,59 @@
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.chrome.options import Options
+import time
 
 from .models import Form, FormField
 from .constants import HEADERS
+from .matching import match
 
-def send_form(url: str, content: List[FormField]) -> None:
-    body = fields_to_body(content)
-    
+def send_form(url: str, content: dict[str, str]) -> None:
+    forms = find_forms(url)
+    for form in forms:
+        fields = []
+        hidden_fields = [field for field in form.fields if field.type == "hidden"]
+        for key, value in content.items():
+            field = match(form, key, value)
+            fields.append(field)
+        if len(fields) < len(content):
+            continue
+        fields.extend(hidden_fields)
+        body = fields_to_body(fields)
+
+        try:
+            if form.method == "GET":
+                res = requests.get(form.action_absolute, data=body)
+            elif form.method == "POST":
+                res = requests.post(form.action_absolute, data=body)
+            res.raise_for_status()
+        except:
+            return 
+
+
+def send_form_browser(url: str, content: dict[str, str]):
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    driver = webdriver.Chrome()
+    driver.get(url)
+
+    forms = find_forms(url, html=driver.page_source)
+    for i, form in enumerate(forms):
+        fields = []
+        for key, value in content.items():
+            field = match(form, key, value)
+            fields.append(field)
+        if len(fields) < len(content):
+            continue
+        input_fields_browser(driver, fields)
+        submit_button = driver.find_element(
+            By.XPATH,
+            f"//form[{i + 1}]//input[@type='submit'] | //form[{i + 1}]//button[@type='submit']")
+        submit_button.click()
 
 
 def find_forms(url: str, html: str | None = None) -> List[Form]:
@@ -55,7 +99,12 @@ def find_forms(url: str, html: str | None = None) -> List[Form]:
 
         form_fields: List[FormField] = []
         inputs = form_soup_tag.find_all(["input", "textarea", "select", "button"])
-
+        input_nums = {
+            "input": 0,
+            "textarea": 0,
+            "select": 0,
+            "button": 0
+        }
         for field in inputs:
             field_tag = field.name
             field_name = field.get("name")
@@ -89,8 +138,12 @@ def find_forms(url: str, html: str | None = None) -> List[Form]:
                         field_value = selected_opt["value"]
                     elif options: # If no 'selected' attribute, default to the first option
                         field_value = options[0].get("value")
-
-
+            input_nums[field_tag] += 1
+            xpath = f"//form[{i + 1}]//{field_tag}"
+            if field_id is not None:
+                xpath += f"[@id='{field_id}]]"
+            elif field_name is not None:
+                xpath += f"[@name='{field_name}']"
             form_field = FormField(
                 tag=field_tag,
                 name=field_name,
@@ -101,7 +154,8 @@ def find_forms(url: str, html: str | None = None) -> List[Form]:
                 required=field_required,
                 maxlength=field_maxlength,
                 checked=field_checked,
-                selected_options=field_selected_options if field_selected_options else None # Only include if not empty
+                selected_options=field_selected_options if field_selected_options else None,
+                xpath=xpath
             )
             form_fields.append(form_field)
 
@@ -166,5 +220,13 @@ def print_form(form: Form) -> None:
                     )
             print("---") # Separator for each field
 
-def fields_to_body(fields: List[FormField]):
+def fields_to_body(fields: List[FormField]) -> dict[str, str]:
     return {field.name: field.value for field in fields}
+
+def input_fields_browser(driver: WebDriver, fields: List[FormField]):
+    for field in fields:
+        element = driver.find_element(By.XPATH, field.xpath)
+        if field.tag in ["input", "textarea"]:
+            time.sleep(0.1)
+            element.send_keys(field.value)
+        

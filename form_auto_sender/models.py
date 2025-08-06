@@ -7,6 +7,7 @@ from typing import List, Optional
 @dataclass
 class FormField:
     tag: str
+    xpath: str
     name: Optional[str] = None
     id: Optional[str] = None
     type: Optional[str] = None
