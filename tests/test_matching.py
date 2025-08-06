@@ -15,7 +15,7 @@ def test_heuristic_matching():
 
     assert field is not None
 
-    print(field)
+    # print(field)
 
 def test_similarity_matching():
     forms = find_forms("http://akikokitamura.com/contact/")
@@ -30,4 +30,4 @@ def test_similarity_matching():
 
     assert field is not None
 
-    print(field)
+    # print(field)

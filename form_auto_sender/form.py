@@ -38,7 +38,7 @@ def send_form(url: str, content: dict[str, str]) -> None:
 def send_form_browser(url: str, content: dict[str, str]):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options=chrome_options)
     driver.get(url)
 
     forms = find_forms(url, html=driver.page_source)
