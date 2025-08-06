@@ -9,17 +9,30 @@ def test_get_form_scheme():
     assert len(fields) != 0
 
 def test_send_form():
-    send_form("http://akikokitamura.com/contact/", {
+    success = send_form("http://akikokitamura.com/contact/", {
         "name": "test",
         "email_address": "test@example.com",
         "message_content": "it's a test",
         "subject": "it's a test"
     })
 
+    assert success
+
 def test_send_form_browser():
-    send_form_browser("http://akikokitamura.com/contact/", {
+    success = send_form_browser("http://akikokitamura.com/contact/", {
         "name": "test",
         "email_address": "test@example.com",
         "message_content": "it's a test",
         "subject": "it's a test"
     })
+
+    assert success
+
+    success = send_form_browser("http://akikokitamura.com/contact/", {
+        # "name": "test",
+        "email_address": "test@example.com",
+        "message_content": "it's a test",
+        "subject": "it's a test"
+    })
+
+    assert not success

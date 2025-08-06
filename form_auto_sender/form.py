@@ -9,10 +9,10 @@ from selenium.webdriver.chrome.options import Options
 import time
 
 from .models import Form, FormField
-from .constants import HEADERS
+from .constants import HEADERS, SUCCESS_KEYWORDS
 from .matching import match
 
-def send_form(url: str, content: dict[str, str]) -> None:
+def send_form(url: str, content: dict[str, str]) -> bool:
     forms = find_forms(url)
     for form in forms:
         fields = []
@@ -30,9 +30,16 @@ def send_form(url: str, content: dict[str, str]) -> None:
                 res = requests.get(form.action_absolute, data=body)
             elif form.method == "POST":
                 res = requests.post(form.action_absolute, data=body)
-            res.raise_for_status()
+
+            if res.status_code >= 200 and res.status_code <= 204:
+                return True
+            elif len(res.history) > 1 and res.history[0].status_code == 301:
+                return True
+            elif any(map(lambda keyword: keyword in res.text, SUCCESS_KEYWORDS)):
+                return True
         except:
-            return 
+            return False
+    return False
 
 
 def send_form_browser(url: str, content: dict[str, str]):
@@ -54,6 +61,17 @@ def send_form_browser(url: str, content: dict[str, str]):
             By.XPATH,
             f"//form[{i + 1}]//input[@type='submit'] | //form[{i + 1}]//button[@type='submit']")
         submit_button.click()
+
+        time.sleep(1)
+        for message in SUCCESS_KEYWORDS:
+            xpath_expression = f"//*[contains(text(), '{message}')]"
+            try:
+                success_element = driver.find_element(By.XPATH, xpath_expression)
+                if success_element.is_displayed():
+                    return True
+            except:
+                continue
+    return False
 
 
 def find_forms(url: str, html: str | None = None) -> List[Form]:
