@@ -7,8 +7,9 @@ from bs4 import BeautifulSoup
 from .models import Form, FormField
 from .constants import HEADERS
 
-def send_form(url: str, content: dict[str, str]) -> None:
-    pass
+def send_form(url: str, content: List[FormField]) -> None:
+    body = fields_to_body(content)
+    
 
 
 def find_forms(url: str, html: str | None = None) -> List[Form]:
@@ -164,3 +165,6 @@ def print_form(form: Form) -> None:
                         f"        - Text: '{opt.get('text')}', Value: '{opt.get('value')}', Selected: {opt.get('selected')}"
                     )
             print("---") # Separator for each field
+
+def fields_to_body(fields: List[FormField]):
+    return {field.name: field.value for field in fields}
