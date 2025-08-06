@@ -118,7 +118,7 @@ def find_forms(url: str, html: str | None = None) -> List[Form]:
     return forms_schemas
 
 
-def print_form_pretty(form: Form) -> None:
+def print_form(form: Form) -> None:
     """
     Prints the extracted form data in a more readable format.
 

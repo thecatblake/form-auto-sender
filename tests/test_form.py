@@ -5,5 +5,5 @@ def test_get_form_scheme():
     assert len(forms) != 0
     
     fields = forms[0].fields
-    # print_form_pretty(forms[0])
+    # print_form(forms[0])
     assert len(fields) != 0
