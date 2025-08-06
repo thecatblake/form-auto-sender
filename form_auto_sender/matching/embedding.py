@@ -3,6 +3,7 @@ from typing import List, Optional
 import numpy as np
 import openai
 from .cache import Cache
+import json
 
 class Embedding(ABC):
     @abstractmethod
@@ -55,5 +56,7 @@ class EmbeddingRetriever:
             if isinstance(embedding, np.ndarray):
                 embedding = embedding.tolist()
             self.cache.set(cache_key, embedding, ttl=ttl)
+        else:
+            embedding = json.loads(embedding)
 
         return embedding

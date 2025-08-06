@@ -28,11 +28,14 @@ def similarity_match(form: Form, key: str, value: str, retriever: EmbeddingRetri
     similar_field = None
     similarity = 0
     for field in form.fields:
+        if field.name is None:
+            continue
         vec1 = retriever.retrieve(field.name)
         vec2 = retriever.retrieve(key)
-        _similarity = cosine_similarity(vec1, vec2)
+        _similarity = cosine_similarity([vec1], [vec2])
 
         if _similarity > similarity and _similarity > threshold:
             similar_field = copy.copy(field)
             similar_field.value = value
+            similarity = _similarity
     return similar_field
