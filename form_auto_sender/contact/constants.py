@@ -113,3 +113,11 @@ CONTACT_EXPANSION = {
     ],
     # You might want to add building_kana if that's ever a separate field
 }
+
+HEURISTIC_CONTACT_PATH = [
+    "contact",
+    "contact-us",
+    "about-us",
+    "reach-us",
+    "inquiry"
+]

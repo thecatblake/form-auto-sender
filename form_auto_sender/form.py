@@ -45,7 +45,7 @@ def send_form(url: str, content: dict[str, str]) -> bool:
 def send_form_browser(url: str, content: dict[str, str]):
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    driver = webdriver.Chrome(options=chrome_options)
+    driver = webdriver.Chrome()
     driver.get(url)
 
     forms = find_forms(url, html=driver.page_source)
@@ -53,14 +53,22 @@ def send_form_browser(url: str, content: dict[str, str]):
         fields = []
         for key, value in content.items():
             field = match(form, key, value)
+            if field is None:
+                continue
             fields.append(field)
-        if len(fields) < len(content):
+        for field in form.fields:
+            if field.tag == "input" and field.type == "checkbox":
+                fields.append(field)
+        if len(fields) == 0:
             continue
         input_fields_browser(driver, fields)
-        submit_button = driver.find_element(
-            By.XPATH,
-            f"//form[{i + 1}]//input[@type='submit'] | //form[{i + 1}]//button[@type='submit']")
-        submit_button.click()
+        try:
+            submit_button = driver.find_element(
+                By.XPATH,
+                f"//form[{i + 1}]//input[@type='submit'] | //form[{i + 1}]//button[@type='submit']")
+            submit_button.click()
+        except:
+            continue
 
         time.sleep(1)
         for message in SUCCESS_KEYWORDS:
@@ -159,7 +167,7 @@ def find_forms(url: str, html: str | None = None) -> List[Form]:
             input_nums[field_tag] += 1
             xpath = f"//form[{i + 1}]//{field_tag}"
             if field_id is not None:
-                xpath += f"[@id='{field_id}]]"
+                xpath += f"[@id='{field_id}']"
             elif field_name is not None:
                 xpath += f"[@name='{field_name}']"
             form_field = FormField(
@@ -242,9 +250,21 @@ def fields_to_body(fields: List[FormField]) -> dict[str, str]:
     return {field.name: field.value for field in fields}
 
 def input_fields_browser(driver: WebDriver, fields: List[FormField]):
+    xpath_used = {}
     for field in fields:
-        element = driver.find_element(By.XPATH, field.xpath)
+        if xpath_used.get(field.xpath, False):
+            continue
+        try:
+            element = driver.find_element(By.XPATH, field.xpath)
+            xpath_used[field.xpath] = True
+        except:
+            continue
         if field.tag in ["input", "textarea"]:
             time.sleep(0.1)
-            element.send_keys(field.value)
-        
+            try:
+                if field.type == "checkbox":
+                    element.click()
+                else:
+                    element.send_keys(field.value)
+            except:
+                continue

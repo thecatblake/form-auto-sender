@@ -25,8 +25,8 @@ def test_send_form_browser():
         "message_content": "it's a test",
         "subject": "it's a test"
     })
-
     assert success
+
 
     success = send_form_browser("http://akikokitamura.com/contact/", {
         # "name": "test",
