@@ -9,7 +9,7 @@ from selenium.webdriver.chrome.options import Options
 import time
 from scraping_tools import BrowserScraper
 
-from .models import Form, FormField
+from .models import Form, FormField, FormSendResult
 from .constants import HEADERS, SUCCESS_KEYWORDS
 from .matching import match
 
@@ -49,6 +49,8 @@ def send_form_browser(url: str, content: dict[str, str]):
         driver.get(url)
 
         forms = find_forms(url, html=driver.page_source)
+        if len(forms) == 0:
+            return FormSendResult.GET_FAILED
         for i, form in enumerate(forms):
             fields = []
             for key, value in content.items():
@@ -82,6 +84,7 @@ def send_form_browser(url: str, content: dict[str, str]):
                         return True
                 except:
                     continue
+            return FormSendResult.SUBMIT_FAILED
     return False
 
 def get_submit_element(driver, form_i):
