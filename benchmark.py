@@ -1,3 +1,4 @@
+from urllib.parse import urljoin
 from form_auto_sender import send_form_browser, send_form
 from form_auto_sender.contact.search import search_contact
 from scraping_tools import MultiProcessRuntime
@@ -37,7 +38,9 @@ def _send_form(url):
     return f"{url},{result}"
 
 def _contact_pages(url):
+    print("searching: " + url)
     pages = search_contact(url)
+    print("finished: " + url)
     if len(pages) == 0:
         return None
     return "\n".join(pages)
@@ -47,9 +50,9 @@ if __name__ == "__main__":
     contact_found = 0
     form_sent = 0
     contact_pages = []
-
-    runtime = MultiProcessRuntime("urls.csv", max_workers=6)
-    runtime.run(_contact_pages, urls)
+    urls = [urljoin(url, "contact") for url in urls]
+    runtime = MultiProcessRuntime("benchmark.csv", max_workers=6)
+    runtime.run(_send_form, urls)
 
 # runtime = MultiProcessRuntime("benchmark.csv")
 # runtime.run(_send_form, contact_pages)

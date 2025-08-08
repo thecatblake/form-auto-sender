@@ -32,6 +32,8 @@ CONTACT_EXPANSION = {
         "telephone",
         "mobile",
         "contact_phone",
+        "your-tel",
+        "your_tel"
     ],
     "message_content": [
         "message",
@@ -42,6 +44,7 @@ CONTACT_EXPANSION = {
         "body",
         "inquiry",
         "shokai_naiyo",
+        "naiyou"
     ],
     "subject": ["subject", "inquiry_subject", "title", "件名", "topic", "detail"],
     "age": ["age", "your_age", "nenrei"],

@@ -7,6 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.chrome.options import Options
 import time
+from scraping_tools import BrowserScraper
 
 from .models import Form, FormField
 from .constants import HEADERS, SUCCESS_KEYWORDS
@@ -43,44 +44,65 @@ def send_form(url: str, content: dict[str, str]) -> bool:
 
 
 def send_form_browser(url: str, content: dict[str, str]):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    driver = webdriver.Chrome()
-    driver.get(url)
+    with BrowserScraper(headless=False) as scraper:
+        driver = scraper.driver
+        driver.get(url)
 
-    forms = find_forms(url, html=driver.page_source)
-    for i, form in enumerate(forms):
-        fields = []
-        for key, value in content.items():
-            field = match(form, key, value)
-            if field is None:
-                continue
-            fields.append(field)
-        for field in form.fields:
-            if field.tag == "input" and field.type == "checkbox":
+        forms = find_forms(url, html=driver.page_source)
+        for i, form in enumerate(forms):
+            fields = []
+            for key, value in content.items():
+                field = match(form, key, value)
+                if field is None:
+                    continue
                 fields.append(field)
-        if len(fields) == 0:
-            continue
-        input_fields_browser(driver, fields)
-        try:
-            submit_button = driver.find_element(
-                By.XPATH,
-                f"//form[{i + 1}]//input[@type='submit'] | //form[{i + 1}]//button[@type='submit']")
-            submit_button.click()
-        except:
-            continue
-
-        time.sleep(1)
-        for message in SUCCESS_KEYWORDS:
-            xpath_expression = f"//*[contains(text(), '{message}')]"
-            try:
-                success_element = driver.find_element(By.XPATH, xpath_expression)
-                if success_element.is_displayed():
-                    return True
-            except:
+            for field in form.fields:
+                if field.tag == "input" and field.type == "checkbox":
+                    fields.append(field)
+            if len(fields) == 0:
                 continue
+            input_fields_browser(driver, fields)
+            prev_url = driver.current_url
+            submit_button = get_submit_element(driver, i)
+            submit_button.click()
+
+            time.sleep(1)
+            try:
+                submit_button = get_submit_element(driver, i)
+                if driver.current_url != prev_url:
+                    submit_button.click()
+            except:
+                pass
+            time.sleep(1)
+            for message in SUCCESS_KEYWORDS:
+                xpath_expression = f"//*[contains(text(), '{message}')]"
+                try:
+                    success_element = driver.find_element(By.XPATH, xpath_expression)
+                    if success_element.is_displayed():
+                        return True
+                except:
+                    continue
     return False
 
+def get_submit_element(driver, form_i):
+    try:
+        submit_button = driver.find_elements(
+                        By.XPATH,
+                        f"//form[{form_i + 1}]//input[@type='submit'] | //form[{form_i + 1}]//button[@type='submit']")
+        return submit_button[-1]
+    except:
+        pass
+
+    try:
+        submit_button = driver.find_elements(
+            By.XPATH,
+            "//*[contains(@class, 'submit') or contains(@name, 'submit')]"
+        )
+        return submit_button[-1]
+    except:
+        pass
+    
+    return None
 
 def find_forms(url: str, html: str | None = None) -> List[Form]:
     """

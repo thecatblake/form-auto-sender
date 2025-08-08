@@ -1,5 +1,4 @@
-
-
+from enum import Enum
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -27,3 +26,9 @@ class Form:
     className: Optional[List[str]] = None
     action_absolute: Optional[str] = None
     fields: List[FormField] = None
+
+class FormSendResult(Enum):
+    GET_FAILED = 1
+    FILLING_FAILED = 2
+    SUBMIT_FAILED = 3
+    SUCCESS = 4
