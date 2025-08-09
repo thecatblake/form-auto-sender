@@ -1,0 +1,29 @@
+{
+  "name": "form-auto-sender",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node src/fillForm.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/STREAM-inc/form-auto-sender.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/STREAM-inc/form-auto-sender/issues"
+  },
+  "homepage": "https://github.com/STREAM-inc/form-auto-sender#readme",
+  "dependencies": {
+    "playwright": "^1.54.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
