@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/fillForm.ts"
+    "start": "npx tsc && node dist/run.js"
   },
   "repository": {
     "type": "git",
