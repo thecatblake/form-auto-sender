@@ -2,10 +2,10 @@ import { readFileSync, appendFileSync, existsSync, writeFileSync } from "fs";
 import { URL } from "url";
 import { Worker } from "worker_threads";
 import path from "path";
+import cron from "node-cron";
 import { ContactData } from "./types";
 
-
-
+// ---- データ雛形 ----
 const contactData: ContactData = {
   sei: "山田",
   mei: "太郎",
@@ -25,8 +25,16 @@ const contactData: ContactData = {
   prefecture: "東京都",
   post_code: "3320125",
   address: "千代田区丸の内１丁目９−２",
-  
 };
+
+// ---- ユーティリティ ----
+function todayFileName(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}-auto-form.txt`;
+}
 
 function prepareContactUrls(filePath: string): string[] {
   const raw = readFileSync(filePath, "utf8").trim().split(/\r?\n/);
@@ -34,7 +42,7 @@ function prepareContactUrls(filePath: string): string[] {
     .map((line) => {
       try {
         const u = new URL(line);
-        return `${u.protocol}//${u.host}/contact`;
+        return `${u.protocol}//${u.host}/`;
       } catch {
         console.warn(`Invalid URL skipped: ${line}`);
         return "";
@@ -45,7 +53,7 @@ function prepareContactUrls(filePath: string): string[] {
 
 function initCsvLog(filePath: string) {
   if (!existsSync(filePath)) {
-    writeFileSync(filePath, "URL,Status\n", "utf8"); // header
+    writeFileSync(filePath, "URL,Status\n", "utf8");
   }
 }
 
@@ -88,11 +96,25 @@ function runInParallel(urls: string[], logFile: string, maxWorkers = 4) {
   });
 }
 
-(async () => {
-  const urls = prepareContactUrls("urls.txt");
-  const logFile = "results.csv";
+// ---- メイン処理 ----
+async function processTodayFile() {
+  const fileName = todayFileName();
+  if (!existsSync(fileName)) {
+    console.log(`No file for today: ${fileName}, skipping.`);
+    return;
+  }
+
+  const urls = prepareContactUrls(fileName);
+  const logFile = fileName.replace("-auto-form.txt", "-results.csv");
 
   initCsvLog(logFile);
-  console.log(`Processing ${urls.length} URLs in parallel...`);
-  await runInParallel(urls, logFile, 24); // 4 parallel workers
-})();
+  console.log(`Processing ${urls.length} URLs from ${fileName}...`);
+  await runInParallel(urls, logFile, 24);
+}
+
+// ---- node-cron スケジューラー ----
+// "0 0 * * *" = 毎日0時に実行
+cron.schedule("0 0 * * *", () => {
+  console.log("=== Daily job started ===");
+  processTodayFile();
+});

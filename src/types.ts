@@ -17,3 +17,12 @@ export interface ContactData {
   post_code?: string;
   address?: string;
 }
+
+export enum ContactFormStatus {
+  PAGE_NOT_FOUND = 1,
+  GET_FAILED = 2,
+  CONTACT_NOT_FOUND = 3,
+  FILLING_FAILED = 4,
+  SUBMIT_FAILED = 5,
+  SUCCESS = 6,
+}
