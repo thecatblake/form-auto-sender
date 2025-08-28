@@ -1,5 +1,6 @@
-import { chromium, Page } from "playwright";
-import { ContactData } from "./types";
+import { parentPort } from "worker_threads";
+import { chromium, Browser, Page } from "playwright";
+import type { ContactData } from "./types";
 
 const sleep = async (milliseconds: number) => {
   return await new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -18,16 +19,34 @@ async function isPageNotFound(page: Page): Promise<boolean> {
   return notFoundKeywords.some(keyword => bodyText.includes(keyword.toLowerCase()));
 }
 
-export async function findContactPageUrl(url: string): Promise<string | null> {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+type Job = { url: string; contactData: ContactData; id: number };
+type Result = { id: number; url: string; status: string };
+
+let browser: Browser | null = null;
+
+/** Launch a single Chromium instance per worker, reused for all jobs */
+async function ensureBrowser(): Promise<Browser> {
+  if (browser && browser.isConnected()) return browser;
+  browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--disable-dev-shm-usage",
+      "--no-sandbox",
+      "--disable-gpu",
+      "--disable-background-networking",
+    ],
+  });
+  return browser;
+}
+
+
+async function findContactPageUrl(url: string, page: Page): Promise<string | null | "page not found"> {
 
   try {
     console.log(`Searching for contact page starting from ${url}...`);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
 
     if (await isPageNotFound(page)) {
-      await browser.close();
       return "page not found";
     }
 
@@ -46,32 +65,25 @@ export async function findContactPageUrl(url: string): Promise<string | null> {
         // Resolve relative URLs against base url
         const resolvedUrl = new URL(href, url).href;
         console.log(`Found contact page link: ${resolvedUrl}`);
-        await browser.close();
         return resolvedUrl;
       }
     }
 
     console.warn("No contact page link found, using original URL.");
-    await browser.close();
     return null;
 
   } catch (error) {
     console.error(`Error searching contact page:`, error);
-    await browser.close();
     return null;
   }
 }
 
-export async function submitContactForm(url: string, data: ContactData): Promise<string> {
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
-
+export async function submitContactForm(url: string, data: ContactData, page: Page): Promise<string> {
   try {
     console.log(`Navigating to ${url}...`);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
   } catch (error) {
     console.error(`Error navigating to ${url}:`, error);
-    await browser.close();
     return "get failed";
   }
 
@@ -118,7 +130,7 @@ export async function submitContactForm(url: string, data: ContactData): Promise
 
     if (formElements.length === 0) {
       console.warn("No form fields found within the form element.");
-      await browser.close();
+      
       return "contact not found";
     }
 
@@ -221,7 +233,7 @@ export async function submitContactForm(url: string, data: ContactData): Promise
     
     if (fieldsFilledCount === 0) {
       console.warn("No fields were filled.");
-      await browser.close();
+      
       return "contact not found";
     }
     
@@ -351,7 +363,7 @@ export async function submitContactForm(url: string, data: ContactData): Promise
 
       if (await submitButton.count() === 0) {
         console.warn("Submit button not found.");
-        await browser.close();
+        
         return "submit failed";
       }
       let _b1 = submitButton.filter({ hasText: /^(?!.*(戻る|修正)).*(送信|確認).*/ })
@@ -373,7 +385,7 @@ export async function submitContactForm(url: string, data: ContactData): Promise
 
       if (isSuccess) {
         console.log("Form submission successful!");
-        await browser.close();
+        
         return "success";
       }
 
@@ -401,7 +413,7 @@ export async function submitContactForm(url: string, data: ContactData): Promise
 
       if (isSuccess) {
         console.log("Form submission successful!");
-        await browser.close();
+        
         return "success";
       }
 
@@ -429,22 +441,61 @@ export async function submitContactForm(url: string, data: ContactData): Promise
 
       if (isSuccess) {
         console.log("Form submission successful!");
-        await browser.close();
+        
         return "success";
       } else {
         console.warn("Success keyword not found on page.");
-        await browser.close();
+        
         return "submit failed";
       }
 
     } catch (error) {
       console.error("Error submitting the form:", error);
-      await browser.close();
+      
       return "submit failed";
     }
   } catch (error) {
     console.error("Error filling form fields or checking checkboxes:", error);
-    await browser.close();
+    
     return "filling failed";
   }
 }
+
+
+/** Handle incoming jobs */
+async function handleJob(job: Job): Promise<Result> {
+  const b = await ensureBrowser();
+  const context = await b.newContext({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    ignoreHTTPSErrors: true,
+  });
+  const page = await context.newPage();
+
+  let targetUrl = job.url;
+  let status = "get failed";
+  try {
+    const maybeContact = await findContactPageUrl(job.url, page);
+    if (maybeContact === "page not found") {
+      status = "page not found";
+    } else {
+      targetUrl = maybeContact || job.url;
+      status = await submitContactForm(targetUrl, job.contactData, page);
+    }
+  } catch (e) {
+    status = "error";
+  } finally {
+    await context.close().catch(() => {});
+  }
+
+  return { id: job.id, url: targetUrl, status };
+}
+
+parentPort?.on("message", async (job: Job) => {
+  const res = await handleJob(job);
+  parentPort?.postMessage(res);
+});
+
+process.on("beforeExit", async () => {
+  await browser?.close().catch(() => {});
+});
