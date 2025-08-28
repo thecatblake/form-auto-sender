@@ -27,6 +27,78 @@ const contactData: ContactData = {
   address: "千代田区丸の内１丁目９−２",
 };
 
+const contactDataA: ContactData = {
+  sei: "福井",
+  mei: "悠介",
+  furigana_sei: "フクイ",
+  furigana_mei: "ユウスケ",
+  manager: "福井悠介",
+  name: "福井悠介",
+  furigana: "ふくいゆうすけ",
+  kana: "フクイ ユウスケ",
+  email: "partner@haluene.co.jp",
+  phone: "0366340795",
+  subject: "【アライアンスご提案】高圧電力の協業パートナーのご提案",
+  message:
+    `お問い合わせフォームより失礼いたします。
+
+突然のご連絡をお許しください。
+私どもは、高圧電力の供給および関連サービスを提供する企業でございます。
+
+この度、貴社の事業拡大やお客様への付加価値向上に貢献できるパートナーシップを築ければと思い、ご連絡を差し上げました。
+
+弊社は、法人のお客様に高圧電力での受電設備の買取り、再エネ供給などコスト削減と合わせて、安定供給のサポートを行っております。
+
+貴社のお客様の省エネ化や経費削減の一助となるよう、貴社とのアライアンスを通じて相互のビジネス拡大を目指しております。
+貴社にて、高圧電力や電力サービスを通じ、既存顧客への付加価値サービス強化や新たなお客様の創出にてご提案できたらと思います。つきまして、一度お話の機会を頂戴出来ますと幸いです。
+
+ご確認のほど、何卒よろしくお願い申し上げます。
+※詳細につきましては、恐れ入りますがpartner@haluene.co.jpまでご連絡お願い致します`,
+  company: "株式会社ハルエネ",
+  department: "戦略推進部",
+  prefecture: "東京都",
+  post_code: "1710021",
+  address: "豊島区西池袋一丁目4番10号光ウエストゲートビル3F",
+};
+
+
+const contactDataB: ContactData = {
+  sei: "福井",
+  mei: "悠介",
+  furigana_sei: "フクイ",
+  furigana_mei: "ユウスケ",
+  manager: "福井悠介",
+  name: "福井悠介",
+  furigana: "ふくいゆうすけ",
+  kana: "フクイ ユウスケ",
+  email: "partner@haluene.co.jp",
+  phone: "0366340795",
+  subject: "【アライアンスご提案】高圧電力の協業パートナーのご提案",
+  message:
+    `お問い合わせフォームより失礼いたします。
+
+突然のご連絡をお許しください。
+私どもは、高圧電力の供給および関連サービスを提供する企業でございます。
+
+この度、貴社の事業拡大やお客様への付加価値向上に貢献できるパートナーシップを築ければと思い、ご連絡を差し上げました。
+
+弊社は、法人のお客様に高圧電力での受電設備の買取り、再エネ供給などコスト削減と合わせて、安定供給のサポートを行っております。
+
+貴社のお客様の省エネ化や経費削減の一助となるよう、貴社とのアライアンスを通じて相互のビジネス拡大を目指しております。
+貴社にて、高圧電力や電力サービスを通じ、既存顧客への付加価値サービス強化や新たなお客様の創出にてご提案できたらと思います。つきまして、一度お話の機会を頂戴出来ますと幸いです。
+
+ご興味をお持ちいただけました際には、お手数ですが、下記フォームよりご連絡いただけますと幸いです。
+ご確認のほど、何卒よろしくお願い申し上げます。
+
+〈問合せフォーム〉
+https://haluene.co.jp/inquiry-partner-approach/`,
+  company: "株式会社ハルエネ",
+  department: "戦略推進部",
+  prefecture: "東京都",
+  post_code: "1710021",
+  address: "豊島区西池袋一丁目4番10号光ウエストゲートビル3F",
+};
+
 // ---- ユーティリティ ----
 function todayFileName(): string {
   const now = new Date();
@@ -76,16 +148,16 @@ function runInParallel(urls: string[], logFile: string, maxWorkers = 4) {
         const url = urls[index++];
         active++;
         const worker = new Worker(workerFile, {
-          workerData: { url, contactData },
+          workerData: { url, contactDataA },
         });
         worker.on("message", (msg: { url: string; status: string }) => {
           console.log(`[${msg.url}] → ${msg.status}`);
           logToCsv(logFile, msg.url, msg.status);
         });
-        worker.on("error", (err) => {
-          console.error(`[${url}] ERROR:`, err);
-          logToCsv(logFile, url, "worker error");
-        });
+        // worker.on("error", (err) => {
+        //   console.error(`[${url}] ERROR:`, err);
+        //   logToCsv(logFile, url, "worker error");
+        // });
         worker.on("exit", () => {
           active--;
           runNext();
@@ -98,7 +170,7 @@ function runInParallel(urls: string[], logFile: string, maxWorkers = 4) {
 
 // ---- メイン処理 ----
 async function processTodayFile() {
-  const fileName = todayFileName();
+  const fileName = "urls-auto-form.txt";
   if (!existsSync(fileName)) {
     console.log(`No file for today: ${fileName}, skipping.`);
     return;
@@ -114,7 +186,11 @@ async function processTodayFile() {
 
 // ---- node-cron スケジューラー ----
 // "0 0 * * *" = 毎日0時に実行
-cron.schedule("0 0 * * *", () => {
-  console.log("=== Daily job started ===");
-  processTodayFile();
-});
+// cron.schedule("0 0 * * *", () => {
+//   console.log("=== Daily job started ===");
+//   processTodayFile();
+// });
+
+(async function () {
+  await processTodayFile();
+})();
