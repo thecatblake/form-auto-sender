@@ -148,16 +148,16 @@ function runInParallel(urls: string[], logFile: string, maxWorkers = 4) {
         const url = urls[index++];
         active++;
         const worker = new Worker(workerFile, {
-          workerData: { url, contactDataA },
+          workerData: { url, contactData: contactDataA },
         });
         worker.on("message", (msg: { url: string; status: string }) => {
           console.log(`[${msg.url}] → ${msg.status}`);
           logToCsv(logFile, msg.url, msg.status);
         });
-        // worker.on("error", (err) => {
-        //   console.error(`[${url}] ERROR:`, err);
-        //   logToCsv(logFile, url, "worker error");
-        // });
+        worker.on("error", (err) => {
+          console.error(`[${url}] ERROR:`, err);
+          // logToCsv(logFile, url, "worker error");
+        });
         worker.on("exit", () => {
           active--;
           runNext();

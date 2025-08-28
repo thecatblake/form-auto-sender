@@ -75,11 +75,18 @@ export async function submitContactForm(url: string, data: ContactData): Promise
     return "get failed";
   }
 
-  const iframeElementHandle = await page.$('iframe');
+  let iframeElementHandle;
+  try {
+    iframeElementHandle = await page.$('iframe');
 
-  if (!iframeElementHandle) {
-    console.log('No iframe found!');
+    if (!iframeElementHandle) {
+      console.log('No iframe found!');
+    }
   }
+  catch {
+    return "get failed";
+  }
+
 
   if (!iframeElementHandle?.isVisible)
     iframeElementHandle?.scrollIntoViewIfNeeded();
@@ -99,6 +106,8 @@ export async function submitContactForm(url: string, data: ContactData): Promise
     if (formLocators.length === 0 && frame) {
       formLocators = await frame.locator("form").all();
     }
+    else if (formLocators.length === 0)
+      return "contact not found";
     console.log(`Found ${formLocators.length} form(s) on the page.`);
     const formLocator = formLocators[0];
 
