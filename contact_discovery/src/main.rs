@@ -2,6 +2,8 @@ mod fetch;
 mod scoring;
 mod handlers;
 mod app_state;
+mod sitemap;
+mod heuristics;
 
 use axum::{
     routing::{get, post},
@@ -14,7 +16,10 @@ use tracing_subscriber::{fmt, EnvFilter};
 use fetch::make_browserish_client;
 
 use crate::app_state::AppState;
-use crate::handlers::scoring::score_url;
+use crate::handlers::{
+    scoring::score_url,
+    discover::discover_from_sitemap
+};
 
 
 #[tokio::main]
@@ -27,11 +32,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let http = make_browserish_client()?;
-    let state = Arc::new(AppState { http });
-
+    let state = Arc::new(AppState {
+        http,
+        per_host_concurrency: 2,
+        max_fetch_per_site: 60,
+    });
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/score", post(score_url))
+        .route("/discover", post(discover_from_sitemap))
         .with_state(state)
         .layer(
             CorsLayer::permissive() // 必要に応じて厳格化
