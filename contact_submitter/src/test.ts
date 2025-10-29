@@ -6,7 +6,8 @@ import { discoverContacts } from "./discover";
 import { click, fillFields, mapFields } from "./mapper";
 import { neutralizeOverlays, screenshotOnFail } from "./utils";
 import { waitForSuccess } from "./verifier";
-
+import * as dotenv from 'dotenv'
+dotenv.config()
 
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
 
@@ -46,7 +47,7 @@ export function get_host_url(path: string): string {
 
 async function getUnsentTargets() {
     const res = await fetch(
-        get_host_url("export/unset-targets"),
+        get_host_url("export/unsent-targets/"),
         {
             method: "GET",
             headers: {
@@ -55,12 +56,15 @@ async function getUnsentTargets() {
         }
     );
     console.log(res);
+    const body = await res.json();
+    return body;
 }
 
 (async () => {
 	let ctx = await acquireContext();
-
-	const url = "https://stream-data.co.jp";
+	const targets = await getUnsentTargets();
+	for (const target of targets) {
+		const url = target.url;
 	const payload: Record<string, string> = {
 		"name": "山田 太郎",
 		"sei": "ヤマダ",
@@ -88,6 +92,7 @@ async function getUnsentTargets() {
 	for (const contactInfo of contacts) {
 		if (contactInfo.score > 50)
 			console.log(await submitOne(contactInfo.url, payload, ctx));
+	}
 	}
 
 	await releaseContext(ctx);

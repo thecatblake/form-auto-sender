@@ -8,11 +8,12 @@
     "start": "node --max-old-space-size=256 dist/submitWorker.js",
     "dev": "tsx src/submitWorker.ts",
     "server": "node dist/submitServer.js",
-    "test": "tsx src/test.ts"
+    "test": "tsx src/test.ts --env-file .env"
   },
   "dependencies": {
     "@types/express": "^5.0.5",
     "@types/morgan": "^1.9.10",
+    "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "ioredis": "^5.4.1",
     "morgan": "^1.10.1",
