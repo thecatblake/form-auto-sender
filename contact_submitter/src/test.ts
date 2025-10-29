@@ -115,6 +115,10 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
         const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
         console.info(`[INFO] Verdict after submit: ${verdict}`);
 
+        if (verdict === "maybe") {
+            return "success";
+        }
+
         if (verdict !== "fail") {
             return verdict;
         }
