@@ -58,7 +58,7 @@ async function getUnsentTargets() {
 function sendSubmission(target_id: number, status: string) {
     console.info(`[INFO] Reporting submission result: target=${target_id}, status=${status}`);
     fetch(
-        get_host_url("export/submissions"),
+        get_host_url("export/submissions/"),
         {
             method: "POST",
             headers: { "Authorization": `Bearer ${AUTH_KEY}` },
