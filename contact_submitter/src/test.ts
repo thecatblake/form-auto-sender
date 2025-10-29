@@ -56,6 +56,10 @@ async function getUnsentTargets() {
 }
 
 async function sendSubmission(target: UnsentTarget, status: string, contact_url: string) {
+    if (status === "maybe")
+        status = "success";
+    else if (status === "fail")
+        status = "failed";
     console.info(`[INFO] Reporting submission result: target=${target.id}, status=${status}`);
     const res = await fetch(
         get_host_url("export/submissions/"),
@@ -114,13 +118,10 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
 
         const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
         console.info(`[INFO] Verdict after submit: ${verdict}`);
-
-        if (verdict === "maybe") {
-            return "success";
-        }
+        
 
         if (verdict !== "fail") {
-            return "failed";
+            return verdict;
         }
     }
 
