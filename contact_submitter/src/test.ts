@@ -120,7 +120,7 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
         }
 
         if (verdict !== "fail") {
-            return verdict;
+            return "failed";
         }
     }
 
