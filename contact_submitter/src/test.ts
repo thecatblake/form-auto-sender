@@ -8,6 +8,7 @@ import { neutralizeOverlays, screenshotOnFail } from "./utils";
 import { waitForSuccess } from "./verifier";
 import * as dotenv from 'dotenv'
 import { exit } from "node:process";
+import { ur } from "zod/v4/locales";
 dotenv.config()
 
 const HOST = process.env.BACKEND_HOST;
@@ -60,6 +61,7 @@ async function sendSubmission(target: UnsentTarget, status: string, contact_url:
         status = "success";
     else if (status === "fail")
         status = "failed";
+
     console.info(`[INFO] Reporting submission result: target=${target.id}, status=${status}`);
     const res = await fetch(
         get_host_url("export/submissions/"),
@@ -182,7 +184,6 @@ const SCORE_THRESHOLD = 30;
                 }
 
                 try {
-                    console.log(contactInfo);
                     const verdict = await submitOne(contactInfo.url, payload, ctx);
                     console.info(`${prefix} Submit verdict: ${verdict} url=${contactInfo.url}`);
                     result = verdict;
@@ -198,7 +199,7 @@ const SCORE_THRESHOLD = 30;
             }
 
             if (result && result !== "success") {
-                sendSubmission(target, result, "");
+                sendSubmission(target, result, url);
                 console.info(`${prefix} Reported result to backend: status=${result}`);
             } else if (!result) {
                 console.info(`${prefix} No submission result (no eligible contacts or all failed)`);
