@@ -1,0 +1,29 @@
+{
+  "name": "contact-submit-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --max-old-space-size=256 dist/submitWorker.js",
+    "dev": "tsx src/submitWorker.ts",
+    "server": "node dist/submitServer.js",
+    "test": "tsx src/test.ts"
+  },
+  "dependencies": {
+    "@types/express": "^5.0.5",
+    "@types/morgan": "^1.9.10",
+    "express": "^5.1.0",
+    "ioredis": "^5.4.1",
+    "morgan": "^1.10.1",
+    "nanoid": "^5.0.7",
+    "p-limit": "^5.0.0",
+    "playwright": "^1.47.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.23",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.4"
+  }
+}
