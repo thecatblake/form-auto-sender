@@ -55,14 +55,23 @@ async function getUnsentTargets() {
     return body;
 }
 
-function sendSubmission(target_id: number, status: string) {
-    console.info(`[INFO] Reporting submission result: target=${target_id}, status=${status}`);
+function sendSubmission(target: UnsentTarget, status: string, contact_url: string) {
+    console.info(`[INFO] Reporting submission result: target=${target.id}, status=${status}`);
     fetch(
         get_host_url("export/submissions/"),
         {
             method: "POST",
             headers: { "Authorization": `Bearer ${AUTH_KEY}` },
-            body: JSON.stringify({ target: target_id, status: status })
+            body: JSON.stringify({
+                status: status,
+                form_url: contact_url,
+                target_id: target.id,
+                target: {
+                    host: target.host,
+                    contact_profile_id: target.profile.id,
+                    tracking_id: target.tracking_id
+                }
+            })
         }
     );
 }
@@ -168,7 +177,7 @@ const SCORE_THRESHOLD = 30;
                     result = verdict;
 
                     if (verdict === "success") {
-                        sendSubmission(target.id, verdict);
+                        sendSubmission(target, verdict, contactInfo.url);
                         console.info(`${prefix} Reported result to backend: status=success`);
                         break; // 成功したら他の候補は試さない
                     }
@@ -178,7 +187,7 @@ const SCORE_THRESHOLD = 30;
             }
 
             if (result && result !== "success") {
-                sendSubmission(target.id, result);
+                sendSubmission(target, result, "");
                 console.info(`${prefix} Reported result to backend: status=${result}`);
             } else if (!result) {
                 console.info(`${prefix} No submission result (no eligible contacts or all failed)`);
