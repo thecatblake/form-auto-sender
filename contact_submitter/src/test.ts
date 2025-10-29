@@ -9,6 +9,8 @@ import { waitForSuccess } from "./verifier";
 import * as dotenv from 'dotenv'
 dotenv.config()
 
+const HOST = process.env.BACKEND_HOST;
+const AUTH_KEY = process.env.FORM_SERVER_SECRET;
 
 /** ページネーション共通型 */
 export type Paginated<T> = {
@@ -38,9 +40,34 @@ export type UnsentTarget = {
 
 /** API レスポンス型 (UnsentTarget の Paginated) */
 export type UnsentTargetsResponse = Paginated<UnsentTarget>;
+async function getUnsentTargets() {
+    console.info("[INFO] Fetching unsent targets...");
+    const res = await fetch(
+        get_host_url("export/unsent-targets/"),
+        {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${AUTH_KEY}` }
+        }
+    );
+    const body = await res.json() as UnsentTargetsResponse;
+    console.info(`[INFO] Received ${body.results.length} unsent targets`);
+    return body;
+}
+
+function sendSubmission(target_id: number, status: string) {
+    console.info(`[INFO] Reporting submission result: target=${target_id}, status=${status}`);
+    fetch(
+        get_host_url("export/submissions"),
+        {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${AUTH_KEY}` },
+            body: JSON.stringify({ target: target_id, status: status })
+        }
+    );
+}
 
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
-
+    console.info(`[INFO] Trying submit for form: ${url}`);
     let page = await ctx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: cfg.navTimeoutMs });
 
@@ -49,37 +76,38 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
         page.waitForTimeout(cfg.findTimeoutMs).then(() => [] as Awaited<ReturnType<typeof findFormCandidates>>),
     ]);
 
+    if (!candidates.length) {
+        console.warn(`[WARN] No form candidates found on: ${url}`);
+    }
+
     for (const cand of candidates.slice(0, 3)) {
         const root = cand.root;
         const map = await mapFields(root);
-        if (!map.email || !map.message || !map.submit) continue;
+        if (!map.email || !map.message || !map.submit) {
+            console.info("[INFO] Candidate skipped (required fields missing)");
+            continue;
+        }
 
+        console.info("[INFO] Filling fields...");
         await fillFields(map, payload);
 
         await neutralizeOverlays(page);
         try { await map.submit!.click({ force: true }); } catch { }
         try { await page.keyboard.press("Enter"); } catch { }
 
-        try {
-            await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
-        } catch {
-            await neutralizeOverlays(page);
-            try { await map.submit!.click({ force: true }); } catch { }
-        }
-
-
         screenshotOnFail(page, url);
 
         const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+        console.info(`[INFO] Verdict after submit: ${verdict}`);
+
         if (verdict !== "fail") {
+            return verdict;
         }
     }
 
     return await waitForSuccess(page);
 }
 
-const HOST = process.env.BACKEND_HOST;
-const AUTH_KEY = process.env.FORM_SERVER_SECRET;
 
 export function get_host_url(path: string): string {
     if (!path.startsWith("/")) {
@@ -88,36 +116,6 @@ export function get_host_url(path: string): string {
     return `${HOST}${path}`;
 }
 
-async function getUnsentTargets() {
-    const res = await fetch(
-        get_host_url("export/unsent-targets/"),
-        {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${AUTH_KEY}`
-            }
-        }
-    );
-    console.log(res);
-    const body = await res.json() as UnsentTargetsResponse;
-    return body;
-}
-
-function sendSubmission(target_id: number, status: string) {
-    fetch(
-        get_host_url("export/submissions"),
-        {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${AUTH_KEY}`
-            },
-            body: JSON.stringify({
-                target: target_id,
-                status: status
-            })
-        }
-    );
-}
 
 (async () => {
     let ctx = await acquireContext();
