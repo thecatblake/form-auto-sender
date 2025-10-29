@@ -182,6 +182,7 @@ const SCORE_THRESHOLD = 30;
                 }
 
                 try {
+                    console.log(contactInfo);
                     const verdict = await submitOne(contactInfo.url, payload, ctx);
                     console.info(`${prefix} Submit verdict: ${verdict} url=${contactInfo.url}`);
                     result = verdict;
