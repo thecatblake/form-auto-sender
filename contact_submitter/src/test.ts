@@ -3,13 +3,11 @@ import { acquireContext, releaseContext } from "./browserPool";
 import { cfg } from "./config";
 import { findFormCandidates } from "./detector";
 import { discoverContacts } from "./discover";
-// import { click } from "./mapper"; // 未使用ならコメントアウト
 import { fillFields, mapFields } from "./mapper";
 import { neutralizeOverlays, screenshotOnFail } from "./utils";
 import { waitForSuccess } from "./verifier";
 import * as dotenv from "dotenv";
 import { exit } from "node:process";
-// import { ur } from "zod/v4/locales"; // 未使用ならコメントアウト
 dotenv.config();
 
 const HOST = process.env.BACKEND_HOST;
@@ -55,27 +53,56 @@ async function getUnsentTargets() {
   return body;
 }
 
-async function sendSubmission(target: UnsentTarget, status: string, contact_url: string) {
-  if (status === "maybe") status = "success";
-  else if (status === "fail") status = "failed";
+/** status 正規化（maybe→success, fail→failed） */
+function normalizeStatus(status: string): string {
+  if (status === "maybe") return "success";
+  if (status === "fail") return "failed";
+  return status;
+}
 
-  console.info(`[INFO] Reporting submission result: target=${target.id}, status=${status}, url=${contact_url}`);
+/** URL から host を取り出す（失敗時は空文字） */
+function hostOf(u: string): string {
+  try {
+    return new URL(u).host;
+  } catch {
+    return "";
+  }
+}
+
+/** 指定の “左側キー” でサーバに送る */
+async function sendSubmission(
+  target: UnsentTarget,
+  status: "success" | "fail" | "maybe",
+  contact_url: string,
+  payload: Record<string, string>
+) {
+  const body = {
+    // ← ここがあなたの指定した「左側のキー」仕様
+    target_id: target.id,
+    profile: target.profile.id,
+    target_host_snapshot: target.host || hostOf(contact_url), // どちらでもOKだが、まずはtarget.hostを優先
+    form_url: contact_url,
+    payload: payload ?? {},
+
+    // 以下は空（または null）で送る指定
+    status: normalizeStatus(status), // 空で良いなら "" にしてもOK（必要ならここを "" に変更）
+    http_status: null,
+    response_body: "",
+    response_json: null,
+    error_message: "",
+  };
+
+  console.info(
+    `[INFO] Reporting submission result: target=${target.id}, status=${body.status}, form_url=${body.form_url}`
+  );
+
   const res = await fetch(get_host_url("export/submissions/"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${AUTH_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      status: status,
-      form_url: contact_url,
-      target_id: target.id,
-      target: {
-        host: target.host,
-        contact_profile_id: target.profile.id,
-        tracking_id: target.tracking_id,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   console.log(await res.text());
@@ -89,7 +116,9 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
 
     const candidates = await Promise.race([
       findFormCandidates(page),
-      page.waitForTimeout(cfg.findTimeoutMs).then(() => [] as Awaited<ReturnType<typeof findFormCandidates>>),
+      page
+        .waitForTimeout(cfg.findTimeoutMs)
+        .then(() => [] as Awaited<ReturnType<typeof findFormCandidates>>),
     ]);
 
     if (!candidates.length) {
@@ -121,11 +150,11 @@ async function submitOne(url: string, payload: Record<string, string>, ctx: Brow
       console.info(`[INFO] Verdict after submit: ${verdict}`);
 
       if (verdict !== "fail") {
-        return verdict;
+        return verdict as "success" | "maybe";
       }
     }
 
-    return await waitForSuccess(page);
+    return (await waitForSuccess(page)) as "success" | "maybe" | "fail";
   } finally {
     try {
       await page.close();
@@ -153,7 +182,7 @@ const SCORE_THRESHOLD = 30;
     for (const target of targets) {
       const startedAt = Date.now();
       const prefix = `[target=${target.id} host=${target.host}]`;
-      const urlHost = target.host; // ルートホスト
+      const urlHost = target.host;
       const payload = target.profile.data;
 
       console.info(`${prefix} Discovering contacts...`);
@@ -187,7 +216,6 @@ const SCORE_THRESHOLD = 30;
           continue;
         }
 
-        // 試行前に記録
         lastTriedContactUrl = contactInfo.url;
 
         try {
@@ -195,23 +223,22 @@ const SCORE_THRESHOLD = 30;
           console.info(`${prefix} Submit verdict: ${verdict} url=${contactInfo.url}`);
           result = verdict;
 
-          // success / maybe はこの場で1回だけ送って終了
           if (verdict === "success" || verdict === "maybe") {
-            await sendSubmission(target, verdict, contactInfo.url);
+            await sendSubmission(target, verdict, contactInfo.url, payload);
             reported = true;
             console.info(`${prefix} Reported result to backend: status=${verdict}`);
-            break; // 成功（および maybe）なら他の候補は試さない
+            break; // 成功/Maybe なら他の候補は試さない
           }
         } catch (err) {
           console.warn(`${prefix} Submit attempt errored: ${String(err)}`);
         }
       }
 
-      // fail 報告（候補を試して fail で終わった場合のみ）
+      // fail のときだけ最後の URL で送る
       if (!reported && result === "fail") {
         const contactUrlForReport = lastTriedContactUrl ?? `https://${urlHost}`;
-        await sendSubmission(target, result, contactUrlForReport);
-        console.info(`${prefix} Reported result to backend: status=${result}`);
+        await sendSubmission(target, "fail", contactUrlForReport, payload);
+        console.info(`${prefix} Reported result to backend: status=fail`);
       } else if (!result) {
         console.info(`${prefix} No submission result (no eligible contacts or all failed to detect)`);
       }
@@ -227,7 +254,6 @@ const SCORE_THRESHOLD = 30;
     try {
       await ctx.close();
     } catch {}
-    // ログが出ない前に終了しないように本来は flush を待つが、要件に合わせ即時終了
     exit(0);
   }
 })();
