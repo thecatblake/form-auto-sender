@@ -7,6 +7,7 @@ import { click, fillFields, mapFields } from "./mapper";
 import { neutralizeOverlays, screenshotOnFail } from "./utils";
 import { waitForSuccess } from "./verifier";
 import * as dotenv from 'dotenv'
+import { exit } from "node:process";
 dotenv.config()
 
 const HOST = process.env.BACKEND_HOST;
@@ -189,6 +190,7 @@ const SCORE_THRESHOLD = 30;
         console.error(`[ERROR] Fatal in main loop: ${String(err)}`);
     } finally {
         await releaseContext(ctx);
+        exit(0);
         console.info(`[INFO] Browser context released`);
     }
 })();
