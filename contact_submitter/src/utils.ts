@@ -3,6 +3,7 @@ import { cfg } from "./config.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+
 export async function neutralizeOverlays(page: Page) {
   // 1) CSSで pointer-events を殺す（最も確実）
   await page.addStyleTag({
