@@ -138,7 +138,7 @@ const SCORE_THRESHOLD = 50;
             try {
                 contacts = await discoverContacts(
                     "http://localhost:8080/discover",
-                    url,
+                    `https://${url}`,
                     100,
                     5,
                     10,
