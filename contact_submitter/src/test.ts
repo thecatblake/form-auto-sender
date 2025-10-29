@@ -55,9 +55,9 @@ async function getUnsentTargets() {
     return body;
 }
 
-function sendSubmission(target: UnsentTarget, status: string, contact_url: string) {
+async function sendSubmission(target: UnsentTarget, status: string, contact_url: string) {
     console.info(`[INFO] Reporting submission result: target=${target.id}, status=${status}`);
-    fetch(
+    const res = await fetch(
         get_host_url("export/submissions/"),
         {
             method: "POST",
@@ -74,6 +74,8 @@ function sendSubmission(target: UnsentTarget, status: string, contact_url: strin
             })
         }
     );
+
+    console.log(res);
 }
 
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
