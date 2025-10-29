@@ -9,6 +9,36 @@ import { waitForSuccess } from "./verifier";
 import * as dotenv from 'dotenv'
 dotenv.config()
 
+
+/** ページネーション共通型 */
+export type Paginated<T> = {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+};
+
+/** Profile */
+export type Profile = {
+  id: number;
+  name: string;
+  data: Record<string, string>; // ← ここ
+  version: number;
+  updated_at: string;
+};
+
+/** UnsentTarget 1件分 */
+export type UnsentTarget = {
+  id: number;
+  host: string;
+  created_at: string;
+  profile: Profile;
+  tracking_id: string;
+};
+
+/** API レスポンス型 (UnsentTarget の Paginated) */
+export type UnsentTargetsResponse = Paginated<UnsentTarget>;
+
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
 
 	let page = await ctx.newPage();
@@ -56,43 +86,32 @@ async function getUnsentTargets() {
         }
     );
     console.log(res);
-    const body = await res.json();
+    const body = await res.json() as UnsentTargetsResponse;
     return body;
 }
 
 (async () => {
 	let ctx = await acquireContext();
-	const targets = await getUnsentTargets();
+	const targets_res = await getUnsentTargets();
+    const targets = targets_res.results;
 	for (const target of targets) {
-		const url = target.url;
-	const payload: Record<string, string> = {
-		"name": "山田 太郎",
-		"sei": "ヤマダ",
-		"mei": "タロウ",
-		"sei_kana": "ヤマダ",
-		"mei_kana": "タロウ",
-		"company": "株式会社ストリーム",
-		"email": "k222ryousuke@gmail.com",
-		"phone": "03-1234-5678",
-		"subject": "お問い合わせ（御社サービスのご提案）",
-		"message": "はじめまして。御社サイトを拝見し、集客とCV改善に関するご提案が可能と考えご連絡しました。具体的な改善案のドラフトを無償提供できます。オンラインで15分だけお時間いただけませんか？",
-		"agree": "true",
-	};
+		const url = target.host;
+        const payload = target.profile.data;
 
-	const contacts = await discoverContacts(
-		"http://localhost:8080/discover",
-		url,
-		100,
-		5,
-		10,
-		500,
-		30000
-	);
-	
-	for (const contactInfo of contacts) {
-		if (contactInfo.score > 50)
-			console.log(await submitOne(contactInfo.url, payload, ctx));
-	}
+        const contacts = await discoverContacts(
+            "http://localhost:8080/discover",
+            url,
+            100,
+            5,
+            10,
+            500,
+            30000
+        );
+        
+        for (const contactInfo of contacts) {
+            if (contactInfo.score > 50)
+                console.log(await submitOne(contactInfo.url, payload, ctx));
+        }
 	}
 
 	await releaseContext(ctx);
