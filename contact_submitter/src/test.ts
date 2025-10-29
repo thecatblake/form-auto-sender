@@ -116,7 +116,7 @@ export function get_host_url(path: string): string {
     return `${HOST}${path}`;
 }
 
-const SCORE_THRESHOLD = 50;
+const SCORE_THRESHOLD = 30;
 
 (async () => {
     const ctx = await acquireContext();
