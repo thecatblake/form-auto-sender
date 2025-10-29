@@ -78,7 +78,7 @@ async function sendSubmission(target: UnsentTarget, status: string, contact_url:
         }
     );
 
-    console.log(res);
+    console.log(await res.text());
 }
 
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
