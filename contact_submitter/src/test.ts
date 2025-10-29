@@ -116,40 +116,79 @@ export function get_host_url(path: string): string {
     return `${HOST}${path}`;
 }
 
+const SCORE_THRESHOLD = 50;
 
 (async () => {
-    let ctx = await acquireContext();
-    const targets_res = await getUnsentTargets();
-    const targets = targets_res.results;
-    for (const target of targets) {
-        const url = target.host;
-        const payload = target.profile.data;
+    const ctx = await acquireContext();
+    try {
+        const targets_res = await getUnsentTargets();
+        const targets = targets_res.results;
 
-        const contacts = await discoverContacts(
-            "http://localhost:8080/discover",
-            url,
-            100,
-            5,
-            10,
-            500,
-            30000
-        );
+        console.info(`[INFO] Start processing targets: count=${targets.length}`);
 
-        let result = null;
+        for (const target of targets) {
+            const startedAt = Date.now();
+            const prefix = `[target=${target.id} host=${target.host}]`;
+            const url = target.host;
+            const payload = target.profile.data;
 
-        for (const contactInfo of contacts) {
-            if (contactInfo.score > 50) {
-                result = await submitOne(contactInfo.url, payload, ctx);
+            console.info(`${prefix} Discovering contacts...`);
+            let contacts: Array<{ url: string; score: number }> = [];
 
-                if (result == "success")
-                    sendSubmission(target.id, result);
+            try {
+                contacts = await discoverContacts(
+                    "http://localhost:8080/discover",
+                    url,
+                    100,
+                    5,
+                    10,
+                    500,
+                    30000
+                );
+                console.info(`${prefix} Discovered ${contacts.length} contact candidates`);
+            } catch (err) {
+                console.error(`${prefix} Contact discovery failed: ${String(err)}`);
+                continue; // 次の target へ
             }
-        }
 
-        if (result) {
-            sendSubmission(target.id, result);
+            let result: "success" | "fail" | "maybe" | null = null;
+
+            for (const contactInfo of contacts) {
+                console.info(`${prefix} Candidate: score=${contactInfo.score} url=${contactInfo.url}`);
+
+                if (contactInfo.score <= SCORE_THRESHOLD) {
+                    console.info(`${prefix} Skipped (score <= ${SCORE_THRESHOLD})`);
+                    continue;
+                }
+
+                try {
+                    const verdict = await submitOne(contactInfo.url, payload, ctx);
+                    console.info(`${prefix} Submit verdict: ${verdict} url=${contactInfo.url}`);
+                    result = verdict;
+
+                    if (verdict === "success") {
+                        sendSubmission(target.id, verdict);
+                        console.info(`${prefix} Reported result to backend: status=success`);
+                        break; // 成功したら他の候補は試さない
+                    }
+                } catch (err) {
+                    console.warn(`${prefix} Submit attempt errored: ${String(err)}`);
+                }
+            }
+
+            if (result && result !== "success") {
+                sendSubmission(target.id, result);
+                console.info(`${prefix} Reported result to backend: status=${result}`);
+            } else if (!result) {
+                console.info(`${prefix} No submission result (no eligible contacts or all failed)`);
+            }
+
+            console.info(`${prefix} Done in ${Date.now() - startedAt}ms`);
         }
+    } catch (err) {
+        console.error(`[ERROR] Fatal in main loop: ${String(err)}`);
+    } finally {
+        await releaseContext(ctx);
+        console.info(`[INFO] Browser context released`);
     }
-
-    await releaseContext(ctx);
 })();
