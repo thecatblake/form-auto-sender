@@ -190,6 +190,7 @@ const SCORE_THRESHOLD = 30;
         console.error(`[ERROR] Fatal in main loop: ${String(err)}`);
     } finally {
         await releaseContext(ctx);
+        await ctx.close()
         exit(0);
         console.info(`[INFO] Browser context released`);
     }
