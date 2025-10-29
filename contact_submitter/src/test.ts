@@ -189,7 +189,7 @@ const SCORE_THRESHOLD = 30;
                     result = verdict;
 
                     if (verdict === "success" || verdict === "maybe") {
-                        sendSubmission(target, verdict, contactInfo.url);
+                        await sendSubmission(target, verdict, contactInfo.url);
                         console.info(`${prefix} Reported result to backend: status=success`);
                         break; // 成功したら他の候補は試さない
                     }
