@@ -12,28 +12,28 @@ dotenv.config()
 
 /** ページネーション共通型 */
 export type Paginated<T> = {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: T[];
 };
 
 /** Profile */
 export type Profile = {
-  id: number;
-  name: string;
-  data: Record<string, string>; // ← ここ
-  version: number;
-  updated_at: string;
+    id: number;
+    name: string;
+    data: Record<string, string>; // ← ここ
+    version: number;
+    updated_at: string;
 };
 
 /** UnsentTarget 1件分 */
 export type UnsentTarget = {
-  id: number;
-  host: string;
-  created_at: string;
-  profile: Profile;
-  tracking_id: string;
+    id: number;
+    host: string;
+    created_at: string;
+    profile: Profile;
+    tracking_id: string;
 };
 
 /** API レスポンス型 (UnsentTarget の Paginated) */
@@ -41,38 +41,51 @@ export type UnsentTargetsResponse = Paginated<UnsentTarget>;
 
 async function submitOne(url: string, payload: Record<string, string>, ctx: BrowserContext) {
 
-	let page = await ctx.newPage();
-	await page.goto(url, { waitUntil: "domcontentloaded", timeout: cfg.navTimeoutMs });
+    let page = await ctx.newPage();
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: cfg.navTimeoutMs });
 
-	const candidates = await Promise.race([
-		  findFormCandidates(page),
-		  page.waitForTimeout(cfg.findTimeoutMs).then(() => [] as Awaited<ReturnType<typeof findFormCandidates>>),
-		]);
+    const candidates = await Promise.race([
+        findFormCandidates(page),
+        page.waitForTimeout(cfg.findTimeoutMs).then(() => [] as Awaited<ReturnType<typeof findFormCandidates>>),
+    ]);
 
-	for (const cand of candidates) {
-		const root = cand.root;
-		const map = await mapFields(root);
+    for (const cand of candidates.slice(0, 3)) {
+        const root = cand.root;
+        const map = await mapFields(root);
+        if (!map.email || !map.message || !map.submit) continue;
 
-		await fillFields(map, payload);
+        await fillFields(map, payload);
 
-		await neutralizeOverlays(page);
-		await click(map.submit);
-		await page.keyboard.press("Enter");
-	}
+        await neutralizeOverlays(page);
+        try { await map.submit!.click({ force: true }); } catch { }
+        try { await page.keyboard.press("Enter"); } catch { }
 
-	await screenshotOnFail(page, url);
+        try {
+            await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+        } catch {
+            await neutralizeOverlays(page);
+            try { await map.submit!.click({ force: true }); } catch { }
+        }
 
-	return await waitForSuccess(page);
+
+        screenshotOnFail(page, url);
+
+        const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+        if (verdict !== "fail") {
+        }
+    }
+
+    return await waitForSuccess(page);
 }
 
 const HOST = process.env.BACKEND_HOST;
 const AUTH_KEY = process.env.FORM_SERVER_SECRET;
 
 export function get_host_url(path: string): string {
-  if (!path.startsWith("/")) {
-    path = "/" + path;
-  }
-  return `${HOST}${path}`;
+    if (!path.startsWith("/")) {
+        path = "/" + path;
+    }
+    return `${HOST}${path}`;
 }
 
 async function getUnsentTargets() {
@@ -90,12 +103,28 @@ async function getUnsentTargets() {
     return body;
 }
 
+function sendSubmission(target_id: number, status: string) {
+    fetch(
+        get_host_url("export/submissions"),
+        {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${AUTH_KEY}`
+            },
+            body: JSON.stringify({
+                target: target_id,
+                status: status
+            })
+        }
+    );
+}
+
 (async () => {
-	let ctx = await acquireContext();
-	const targets_res = await getUnsentTargets();
+    let ctx = await acquireContext();
+    const targets_res = await getUnsentTargets();
     const targets = targets_res.results;
-	for (const target of targets) {
-		const url = target.host;
+    for (const target of targets) {
+        const url = target.host;
         const payload = target.profile.data;
 
         const contacts = await discoverContacts(
@@ -107,12 +136,22 @@ async function getUnsentTargets() {
             500,
             30000
         );
-        
-        for (const contactInfo of contacts) {
-            if (contactInfo.score > 50)
-                console.log(await submitOne(contactInfo.url, payload, ctx));
-        }
-	}
 
-	await releaseContext(ctx);
+        let result = null;
+
+        for (const contactInfo of contacts) {
+            if (contactInfo.score > 50) {
+                result = await submitOne(contactInfo.url, payload, ctx);
+
+                if (result == "success")
+                    sendSubmission(target.id, result);
+            }
+        }
+
+        if (result) {
+            sendSubmission(target.id, result);
+        }
+    }
+
+    await releaseContext(ctx);
 })();
