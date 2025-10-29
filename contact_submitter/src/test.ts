@@ -61,7 +61,10 @@ async function sendSubmission(target: UnsentTarget, status: string, contact_url:
         get_host_url("export/submissions/"),
         {
             method: "POST",
-            headers: { "Authorization": `Bearer ${AUTH_KEY}` },
+            headers: { 
+                "Authorization": `Bearer ${AUTH_KEY}`,
+                "Content-Type": "application/json"
+            },
             body: JSON.stringify({
                 status: status,
                 form_url: contact_url,
