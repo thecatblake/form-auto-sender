@@ -15,7 +15,7 @@ const createLimit = pLimit(1); // コンテキスト生成はシリアルに
 
 function launchArgs(): LaunchOptions {
   return {
-    headless: true,
+    headless: false,
     args: [
       "--no-sandbox",
       "--disable-dev-shm-usage",

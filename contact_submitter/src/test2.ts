@@ -44,7 +44,7 @@ class QpsLimiter {
   }
 }
 
-const QPS = 0.1;
+const QPS = 10;
 const limiter = new QpsLimiter(QPS);
 
 const payload: SubmitPayload = {
@@ -111,7 +111,7 @@ rl.on("line", async (line) => {
   
   await limiter.take();
   const browser = await chromium.launch({
-    headless: true,
+    headless: false,
     args: [
       "--no-sandbox",
       "--disable-dev-shm-usage",
@@ -153,42 +153,39 @@ rl.on("line", async (line) => {
     
 
     for (const result of discover_result.results_top) {
+
+      if (result.score < 50) continue ;
       const page = await browser?.newPage();
       await page?.goto(result.url, {
         waitUntil: "networkidle",
-        timeout: 600000
+        timeout: 10000
       });
 
-      const candidates = await findFormCandidates(page);
+      const root = page.locator("body");
+      const map = await mapFields(root);
+      console.log("field mapped")
+      // if (!map.email || !map.message || !map.submit) continue;
 
-      // console.log(`${candidates.length} candidates found`)
+      await fillFields(map, payload);
 
-      for (const candidate of candidates) {
-          const root = candidate.root;
-          const map = await mapFields(root);
-          // console.log("field mapped")
-          // if (!map.email || !map.message || !map.submit) continue;
-    
-          await fillFields(map, payload);
-    
-          await neutralizeOverlays(page);
-          try { await map.submit!.click({ force: true }); } catch {}
-          try { await page.keyboard.press("Enter"); } catch {}
-    
-          try {
-            await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
-          } catch {
-            await neutralizeOverlays(page);
-            try { await map.submit!.click({ force: true }); } catch {}
-          }
-        
-          // console.log("form sent");
+      await neutralizeOverlays(page);
+      try { await map.submit!.click({ force: true }); } catch {}
+      try { await page.keyboard.press("Enter"); } catch {}
 
-          screenshotOnFail(page, result.url);
-    
-          const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
-          progress[verdict]++;
+      try {
+        await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+      } catch {
+        await neutralizeOverlays(page);
+        try { await map.submit!.click({ force: true }); } catch {}
       }
+    
+      console.log("form sent");
+
+      screenshotOnFail(page, result.url);
+
+      const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+      progress[verdict]++;
+  
 
       await page.close();
     }
