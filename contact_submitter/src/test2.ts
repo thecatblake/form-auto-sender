@@ -101,6 +101,12 @@ type DiscoverRes = {
   results_top: DiscoverResult[]
 }
 
+const progress = {
+  "success": 0,
+  "maybe": 0,
+  "fail": 0
+}
+
 rl.on("line", async (line) => {
   
   await limiter.take();
@@ -155,12 +161,12 @@ rl.on("line", async (line) => {
 
       const candidates = await findFormCandidates(page);
 
-      console.log(`${candidates.length} candidates found`)
+      // console.log(`${candidates.length} candidates found`)
 
       for (const candidate of candidates) {
           const root = candidate.root;
           const map = await mapFields(root);
-          console.log("field mapped")
+          // console.log("field mapped")
           // if (!map.email || !map.message || !map.submit) continue;
     
           await fillFields(map, payload);
@@ -176,12 +182,12 @@ rl.on("line", async (line) => {
             try { await map.submit!.click({ force: true }); } catch {}
           }
         
-          console.log("form senet");
+          // console.log("form sent");
 
           screenshotOnFail(page, result.url);
     
           const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
-          console.log(verdict);
+          progress[verdict]++;
       }
 
       await page.close();
@@ -190,6 +196,7 @@ rl.on("line", async (line) => {
     // console.error(e)
     console.log(e)
   } finally {
+    process.stdout.write(`\rsuccess: ${progress.success}, maybe: ${progress.maybe}, fail: ${progress.fail}`);
     await context.close();
     await browser.close();
   }
