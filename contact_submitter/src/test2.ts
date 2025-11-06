@@ -3,6 +3,10 @@ import * as path from "path";
 import * as readline from "readline";
 import { acquireContext, releaseContext } from "./browserPool";
 import { chromium } from "playwright";
+import { fillFields, mapFields, SubmitPayload } from "./mapper";
+import { findFormCandidates } from "./detector";
+import { neutralizeOverlays, screenshotOnFail } from "./utils";
+import { waitForSuccess } from "./verifier";
 
 class QpsLimiter {
   private capacity: number;
@@ -40,8 +44,41 @@ class QpsLimiter {
   }
 }
 
-const QPS = 10;
+const QPS = 0.1;
 const limiter = new QpsLimiter(QPS);
+
+const payload: SubmitPayload = {
+  // 氏名
+  name: "山田 太郎",
+  sei: "山田",
+  mei: "太郎",
+  sei_kana: "ヤマダ",
+  mei_kana: "タロウ",
+
+  // 企業
+  company: "株式会社サンプル",
+  department: "営業部",
+  title: "課長",
+
+  // 連絡
+  email: "taro.yamada@example.com",
+  phone: "03-1234-5678",
+  phone_parts: ["03", "1234", "5678"],
+
+  // 住所
+  zip: "100-0001",
+  prefecture: "東京都",
+  address1: "千代田区千代田1-1",
+  address2: "サンプルビル101",
+
+  // 問い合わせ
+  subject: "資料請求について",
+  message: "御社サービスの資料を拝見したくご連絡いたしました。",
+  type: "資料請求",
+
+  // 同意
+  agree: true,
+};
 
 const input = "urls.txt";
 const inStream = fs.createReadStream(path.resolve(process.cwd(), input), { encoding: "utf8" });
@@ -115,11 +152,43 @@ rl.on("line", async (line) => {
         waitUntil: "networkidle",
         timeout: 600000
       });
-      console.log("page loaded");
+
+      const candidates = await findFormCandidates(page);
+
+      console.log(`${candidates.length} candidates found`)
+
+      for (const candidate of candidates) {
+          const root = candidate.root;
+          const map = await mapFields(root);
+          console.log("field mapped")
+          // if (!map.email || !map.message || !map.submit) continue;
+    
+          await fillFields(map, payload);
+    
+          await neutralizeOverlays(page);
+          try { await map.submit!.click({ force: true }); } catch {}
+          try { await page.keyboard.press("Enter"); } catch {}
+    
+          try {
+            await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+          } catch {
+            await neutralizeOverlays(page);
+            try { await map.submit!.click({ force: true }); } catch {}
+          }
+        
+          console.log("form senet");
+
+          screenshotOnFail(page, result.url);
+    
+          const verdict = await waitForSuccess(page, { timeoutMs: 12_000, settleMs: 500 });
+          console.log(verdict);
+      }
+
       await page.close();
     }
   } catch(e) {
-    console.error(e)
+    // console.error(e)
+    console.log(e)
   } finally {
     await context.close();
     await browser.close();
