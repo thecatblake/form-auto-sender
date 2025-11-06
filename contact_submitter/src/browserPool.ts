@@ -21,7 +21,7 @@ function launchArgs(): LaunchOptions {
       "--disable-dev-shm-usage",
       "--disable-gpu",
       "--disable-extensions",
-      "--disable-background-networking",
+      // "--disable-background-networking",
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
       "--mute-audio",

@@ -8,7 +8,7 @@
     "start": "node --max-old-space-size=256 dist/submitWorker.js",
     "dev": "tsx src/submitWorker.ts",
     "server": "node dist/submitServer.js",
-    "test": "tsx src/test.ts --env-file .env"
+    "test": "tsx src/test2.ts"
   },
   "dependencies": {
     "@types/express": "^5.0.5",
