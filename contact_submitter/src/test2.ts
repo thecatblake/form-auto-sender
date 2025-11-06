@@ -121,6 +121,9 @@ rl.on("line", async (line) => {
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
       "--mute-audio",
+      '--disk-cache-size=1',   // ほぼ無効化
+      '--media-cache-size=1',
+      '--disable-cache',
       "--no-first-run",
       "--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaSessionService,InterestCohort",
     ],
