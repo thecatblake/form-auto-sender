@@ -1,30 +1,33 @@
 {
-  "name": "contact-submit-worker",
-  "version": "0.1.0",
-  "type": "module",
-  "private": true,
+  "name": "contact_submitter",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "start": "node --max-old-space-size=256 dist/submitWorker.js",
-    "dev": "tsx src/submitWorker.ts",
-    "server": "node dist/submitServer.js",
-    "test": "tsx src/test2.ts"
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "server": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@types/express": "^5.0.5",
-    "@types/morgan": "^1.9.10",
-    "dotenv": "^17.2.3",
+    "@types/multer": "^2.0.0",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
-    "ioredis": "^5.4.1",
-    "morgan": "^1.10.1",
-    "nanoid": "^5.0.7",
-    "p-limit": "^5.0.0",
-    "playwright": "^1.47.2",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.23",
-    "tsx": "^4.19.2",
-    "typescript": "^5.5.4"
+    "multer": "^2.0.2",
+    "p-limit": "^7.2.0",
+    "pg": "^8.16.3",
+    "playwright": "^1.56.1"
   }
 }

@@ -1,7 +1,7 @@
-// successDetector.ts
 import { Page } from "playwright";
 
-/** ---- 1) 強力な成功ワード（日本語+英語） ---- */
+export type SubmitResult = "success" | "maybe" | "fail";
+
 const THANKS_TEXT = new RegExp([
   // JP: 送信系
   "(お問い合わせ|お問合せ|ご連絡|お申し込み|申込|応募|資料請求|見積|予約|ご注文|購入).*(完了|受け付け|受理|送信|ありがとうございました|ありがとうございます)",
@@ -100,7 +100,7 @@ function urlSuccessHeuristic(u: URL): boolean {
 export async function waitForSuccess(
   page: Page,
   opts?: { timeoutMs?: number; settleMs?: number }
-): Promise<"success" | "maybe" | "fail"> {
+): Promise<SubmitResult> {
   const timeoutMs = opts?.timeoutMs ?? 12000;   // 12s
   const settleMs  = opts?.settleMs  ?? 600;     // 送信直後の揺れ待ち
 

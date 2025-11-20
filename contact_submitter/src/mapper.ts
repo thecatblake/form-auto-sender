@@ -1,4 +1,5 @@
 import { Locator } from "playwright";
+import { logger } from "./logger";
 
 /** -------------------------
  *  正規表現辞書（表記ゆれ対応）
@@ -81,6 +82,7 @@ export type FieldMap = {
 export type SubmitPayload = {
   // 氏名
   name?: string; // 「姓 名」や「名 姓」でもOK（半角/全角スペース分割）
+  kana?: string;
   sei?: string;
   mei?: string;
   sei_kana?: string;
@@ -98,6 +100,7 @@ export type SubmitPayload = {
 
   // 住所
   zip?: string;
+  post_code?: string;
   prefecture?: string;
   address1?: string;
   address2?: string;
@@ -116,57 +119,31 @@ export type SubmitPayload = {
  *  ------------------------- */
 async function isFillable(el: Locator): Promise<boolean> {
   try {
-    const visible = await el.isVisible();
-    if (!visible) return false;
-  } catch { /* ignore */ }
-
-  try {
-    // ハニーポット風の属性やhidden, aria-hiddenを弾く
-    return await el.evaluate((node) => {
-      const e = node as HTMLElement;
-      const style = window.getComputedStyle(e);
-      const name = (e.getAttribute("name") || "").toLowerCase();
-      const id = (e.id || "").toLowerCase();
-
-      const hidden = e.hasAttribute("hidden") ||
-        e.getAttribute("aria-hidden") === "true" ||
-        style.display === "none" ||
-        style.visibility === "hidden" ||
-        (e as any).offsetParent === null;
-
-      const tabIdx = e.getAttribute("tabindex");
-      const isHpAttr = (name + " " + id).match(/(honeypot|hp_|_hp|_confirm|website_url|url)/i) != null;
-      const isHiddenType = (e as HTMLInputElement).type === "hidden";
-
-      return !(hidden || tabIdx === "-1" || isHpAttr || isHiddenType);
-    });
+    return await el.isVisible();
   } catch {
-    return true; // 要素取得に失敗したらとりあえず許可（過剰除外を避ける）
+    return false;
   }
 }
 
 /** :has-text("...") を安全に処理する pick() 改訂版 */
 async function pick(root: Locator, selectors: string[]): Promise<Locator | undefined> {
   for (const s of selectors) {
-    // :has-text("...") を検出して baseSel + filter({ hasText: /.../i }) に変換
     const m = s.match(/^(.*):has-text\((.*)\)\s*$/i);
     if (m) {
       const baseSel = (m[1] || "*").trim() || "*";
-      // 括弧内のクォートを剥がす（"..." / '...' 両対応）
       const textRaw = (m[2] || "").trim().replace(/^['"]|['"]$/g, "");
       const re = new RegExp(textRaw, "i");
       const candidates = root.locator(baseSel).filter({ hasText: re });
-      const count = await candidates.count();
-      if (count > 0) return candidates.first();
+      if (await candidates.count()) {
+        const first = candidates.first();
+        if (await isFillable(first)) return first;
+      }
       continue;
     }
 
-    // 通常CSSとして処理
-    const list = root.locator(s);
-    const count = await list.count();
-    for (let i = 0; i < count; i++) {
-      const el = list.nth(i);
-      if (await isFillable(el)) return el;
+    const cand = root.locator(s).first();
+    if (await cand.count() && await isFillable(cand)) {
+      return cand;
     }
   }
   return undefined;
@@ -174,12 +151,7 @@ async function pick(root: Locator, selectors: string[]): Promise<Locator | undef
 
 // ラベル由来（getByLabelは表記揺れに強い）
 async function pickByLabel(root: Locator, rx: RegExp): Promise<Locator | undefined> {
-  const el = root.getByLabel(rx, { exact: false });
-  if (await el.count()) {
-    const first = el.first();
-    if (await isFillable(first)) return first;
-  }
-  return undefined;
+  return root.getByLabel(rx, { exact: false });
 }
 
 // 近傍のテキスト（祖先.container内ラベルテキストで判定）
@@ -192,7 +164,7 @@ async function pickByNearbyText(
   const wrappers = [
     ".form-group", ".field", ".form-item", ".c-form__item",
     ".mktoFormRow", ".hs-form-field", ".wpforms-field",
-    "li", "div", "section"
+    "fieldset" // ←ぐらいで十分なことが多い
   ];
 
   for (const w of wrappers) {
@@ -269,6 +241,507 @@ function splitPhoneJP(phone?: string): [string?, string?, string?] {
   return [d, undefined, undefined];
 }
 
+const fillIfEmpty = async (el: Locator | undefined, v?: string) => {
+  if (!el) return;
+  if (!v || v.length === 0) return;
+  try {
+    const current = await el.inputValue().catch(() => "");
+    if (current && current.trim().length > 0) return;
+    await el.fill(v);
+  } catch {
+    /* ignore */
+  }
+};
+
+const checkIfNeeded = async (el: Locator | undefined, v: boolean = true) => {
+  if (!el) return;
+  try {
+    const checked = await el.isChecked().catch(() => false);
+    if (v && !checked) await el.check({ force: true });
+    if (!v && checked) await el.uncheck({ force: true });
+  } catch {
+    /* ignore */
+  }
+};
+
+const fillPair = async (
+  left?: Locator,
+  right?: Locator,
+  leftVal?: string,
+  rightVal?: string,
+  joiner: string = " "
+) => {
+  const fused = [leftVal, rightVal].filter(Boolean).join(joiner).trim() || undefined;
+  if (left && right) {
+    await fillIfEmpty(left, leftVal ?? fused);
+    await fillIfEmpty(right, rightVal ?? fused);
+  } else if (left) {
+    await fillIfEmpty(left, leftVal ?? fused);
+  } else if (right) {
+    await fillIfEmpty(right, rightVal ?? fused);
+  }
+};
+
+const selectPrefectureSafe = async (select?: Locator, prefecture?: string) => {
+  if (!select || !prefecture) return;
+  try {
+    await select.selectOption({ label: prefecture });
+    return;
+  } catch {
+    // ignore → value 探し fallback
+  }
+  try {
+    const opts = select.locator("option");
+    const cnt = await opts.count();
+    let val: string | undefined;
+    for (let i = 0; i < cnt; i++) {
+      const o = opts.nth(i);
+      const txt = (await o.innerText()).trim();
+      if (txt.includes(prefecture)) {
+        val = (await o.getAttribute("value")) ?? undefined;
+        break;
+      }
+    }
+    if (val) await select.selectOption(val);
+  } catch {
+    /* ignore */
+  }
+};
+
+// -------------------------
+// メイン：payload を直接流し込む
+// -------------------------
+
+export async function fillFormSmart(root: Locator, payload: SubmitPayload): Promise<void> {
+  // ---------------- email ----------------
+  const email =
+    (await pick(root, [
+      'input[type="email"]',
+      'input[name*="mail" i]',
+      'input[id*="mail" i]',
+      'input[placeholder*="メール"]',
+      'input[placeholder*="email" i]',
+      'input[aria-label*="email" i]',
+      'input[name="your-email"]',
+      'input[name="Email"]',
+      'input[name="email"]',
+      'input[name="fields[email]"]',
+      'input[name^="wpforms"][name$="[email]"]',
+      'input[name="contact[email]"]',
+    ])) ?? (await pickByLabel(root, Rx.email)) ?? (await pickByNearbyText(root, Rx.email, "input"));
+
+  const emailConfirm =
+    (await pick(root, [
+      'input[name*="confirm" i]',
+      'input[id*="confirm" i]',
+      'input[placeholder*="確認" i]',
+      'input[placeholder*="confirm" i]',
+      'input[aria-label*="confirm" i]',
+      'input[name="your-email-confirm"]',
+      'input[name="email_confirm"]',
+      'input[name="emailConfirmation"]',
+    ])) ?? (await pickByLabel(root, Rx.emailConfirm)) ?? (await pickByNearbyText(root, Rx.emailConfirm, "input"));
+
+  await fillIfEmpty(email, payload.email);
+  await fillIfEmpty(emailConfirm, payload.email);
+  logger.info("filled a email");
+  // ---------------- 氏名 ----------------
+  let familyName =
+    (await pick(root, [
+      'input[name*="sei" i]',
+      'input[id*="sei" i]',
+      'input[name*="last" i]',
+      'input[id*="last" i]',
+      'input[name*="surname" i]',
+      'input[id*="surname" i]',
+      'input[name*="family" i]',
+      'input[id*="family" i]',
+      'input[placeholder*="姓"]',
+      'input[placeholder*="氏"]',
+      'input[placeholder*="last" i]',
+      'input[aria-label*="last" i]',
+      'input[name="your-lastname"]',
+      'input[name="last_name"]',
+      'input[name="lastname"]',
+      'input[name^="wpforms"][name$="[last]"]',
+    ])) ?? (await pickByLabel(root, Rx.family)) ?? (await pickByNearbyText(root, Rx.family, "input"));
+
+  let givenName =
+    (await pick(root, [
+      'input[name*="mei" i]',
+      'input[id*="mei" i]',
+      'input[name*="first" i]',
+      'input[id*="first" i]',
+      'input[name*="given" i]',
+      'input[id*="given" i]',
+      'input[placeholder*="名"]',
+      'input[placeholder*="first" i]',
+      'input[aria-label*="first" i]',
+      'input[name="your-firstname"]',
+      'input[name="first_name"]',
+      'input[name="firstname"]',
+      'input[name^="wpforms"][name$="[first]"]',
+    ])) ?? (await pickByLabel(root, Rx.given)) ?? (await pickByNearbyText(root, Rx.given, "input"));
+
+  let fullName =
+    (await pick(root, [
+      'input[name*="fullname" i]',
+      'input[id*="fullname" i]',
+      'input[name="name"]',
+      'input[id="name"]',
+      'input[name*="your-name" i]',
+      'input[name^="wpforms"][name$="[name]"]',
+      'input[placeholder*="氏名"]',
+      'input[placeholder*="お名前"]',
+      'input[placeholder*="おなまえ"]',
+      'input[placeholder*="name" i]',
+      'input[aria-label*="氏名"]',
+      'input[aria-label*="お名前"]',
+      'input[aria-label*="name" i]',
+    ])) ?? (await pickByLabel(root, Rx.name)) ?? (await pickByNearbyText(root, Rx.name, "input"));
+
+  // split payload
+  let sei = payload.sei;
+  let mei = payload.mei;
+  if ((!sei || !mei) && payload.name) {
+    const sp = splitName(payload.name);
+    sei = sei || sp.sei;
+    mei = mei || sp.mei;
+  }
+
+  // family/given が両方あればそれを優先
+  if (familyName && givenName && fullName) {
+    if (await sameElement(fullName, familyName) || await sameElement(fullName, givenName)) {
+      fullName = undefined;
+    } else {
+      fullName = undefined;
+    }
+  }
+
+  // フルネーム1フィールド
+  await fillIfEmpty(fullName, [sei, mei].filter(Boolean).join(" ").trim() || undefined);
+  logger.info("filled a name");
+  // 姓 / 名 分割
+  await fillPair(familyName, givenName, sei, mei);
+  logger.info("filled a sei mei");
+
+  // ---------------- カナ（セイ/メイ） ----------------
+  let familyKana =
+    (await pick(root, [
+      'input[name*="sei_kana" i]',
+      'input[id*="sei_kana" i]',
+      'input[name*="seiKana" i]',
+      'input[id*="seiKana" i]',
+      'input[name*="last_kana" i]',
+      'input[id*="last_kana" i]',
+      'input[name*="kana_sei" i]',
+      'input[id*="kana_sei" i]',
+      'input[id*="last" i][id*="kana" i]',
+      'input[name*="last" i][name*="kana" i]',
+      'input[id*="family" i][id*="kana" i]',
+      'input[name*="family" i][name*="kana" i]',
+      'input[placeholder*="セイ"]',
+    ])) ?? (await pickByLabel(root, Rx.familyKana)) ?? (await pickByNearbyText(root, Rx.familyKana, "input"));
+
+  let givenKana =
+    (await pick(root, [
+      'input[name*="mei_kana" i]',
+      'input[id*="mei_kana" i]',
+      'input[name*="meiKana" i]',
+      'input[id*="meiKana" i]',
+      'input[name*="first_kana" i]',
+      'input[id*="first_kana" i]',
+      'input[name*="kana_mei" i]',
+      'input[id*="kana_mei" i]',
+      'input[id*="first" i][id*="kana" i]',
+      'input[name*="first" i][name*="kana" i]',
+      'input[id*="given" i][id*="kana" i]',
+      'input[name*="given" i][name*="kana" i]',
+      'input[placeholder*="メイ"]',
+    ])) ?? (await pickByLabel(root, Rx.givenKana)) ?? (await pickByNearbyText(root, Rx.givenKana, "input"));
+
+  if (!familyKana || !givenKana || await sameElement(familyKana, givenKana)) {
+    const kanaCandidates = await root
+      .locator(
+        [
+          'input[name*="kana" i]',
+          'input[id*="kana" i]',
+          'input[placeholder*="カナ"]',
+          'input[placeholder*="フリガナ"]',
+          'input[placeholder*="ふりがな"]',
+          'input[placeholder*="フリガナ（セイ メイ"]',
+          'input[placeholder*="セイ メイ"]',
+        ].join(","),
+      )
+      .all();
+
+    type KH = { el: Locator; hint: string };
+    const hints: KH[] = [];
+    for (const el of kanaCandidates) {
+      const [name, id, ph, labelText] = await Promise.all([
+        el.getAttribute("name"),
+        el.getAttribute("id"),
+        el.getAttribute("placeholder"),
+        (async () => {
+          try {
+            const lab = await el.locator("xpath=ancestor-or-self::label[1]").innerText().catch(() => "");
+            return lab;
+          } catch {
+            return "";
+          }
+        })(),
+      ]);
+      const hint = `${(name || "").toLowerCase()} ${(id || "").toLowerCase()} ${(ph || "").toLowerCase()} ${(labelText || "").toLowerCase()}`;
+      hints.push({ el, hint });
+    }
+
+    for (const h of hints) {
+      if (!givenKana && /(first|given|mei|メイ|めい)/.test(h.hint)) givenKana = h.el;
+      if (!familyKana && /(last|family|sei|セイ|せい)/.test(h.hint)) familyKana = h.el;
+    }
+
+    if (!familyKana && !givenKana && hints[0]) {
+      familyKana = hints[0].el;
+      givenKana = hints[0].el;
+    } else if ((!familyKana || !givenKana) && hints.length >= 2) {
+      familyKana = familyKana ?? hints[0].el;
+      givenKana = givenKana ?? hints[1].el;
+    }
+
+    if (await sameElement(familyKana, givenKana)) {
+      if (familyKana) {
+        const [fn, fi] = await Promise.all([
+          familyKana.getAttribute("name"),
+          familyKana.getAttribute("id"),
+        ]);
+        const fHint = `${(fn || "").toLowerCase()} ${(fi || "").toLowerCase()}`;
+        if (/(first|given|mei)/.test(fHint)) {
+          familyKana = undefined;
+        } else {
+          givenKana = undefined;
+        }
+      }
+    }
+  }
+
+  await fillPair(familyKana, givenKana, payload.sei_kana, payload.mei_kana);
+
+  // ---------------- 会社 ----------------
+  const company =
+    (await pick(root, [
+      'input[name*="company" i]',
+      'input[id*="company" i]',
+      'input[placeholder*="会社名"]',
+      'input[placeholder*="法人名"]',
+      'input[placeholder*="company" i]',
+      'input[aria-label*="company" i]',
+      'input[name="your-company"]',
+      'input[name="company_name"]',
+      'input[name="organization"]',
+      'input[name^="wpforms"][name$="[company]"]',
+    ])) ?? (await pickByLabel(root, Rx.company)) ?? (await pickByNearbyText(root, Rx.company, "input"));
+
+  await fillIfEmpty(company, payload.company);
+
+  // ---------------- 電話 ----------------
+  let phone =
+    (await pick(root, [
+      'input[type="tel"]',
+      'input[name*="tel" i]',
+      'input[id*="tel" i]',
+      'input[placeholder*="電話"]',
+      'input[placeholder*="phone" i]',
+      'input[aria-label*="phone" i]',
+      'input[name="your-tel"]',
+      'input[name="phone"]',
+      'input[name="mobile"]',
+      'input[name^="wpforms"][name$="[phone]"]',
+    ])) ?? (await pickByLabel(root, Rx.phone)) ?? (await pickByNearbyText(root, Rx.phone, "input"));
+
+  const telCandidates = await root
+    .locator('input[type="tel"], input[name*="tel" i], input[name*="phone" i]')
+    .all();
+
+  let tel1: Locator | undefined;
+  let tel2: Locator | undefined;
+  let tel3: Locator | undefined;
+
+  const telSplitHints = (await Promise.all(
+    telCandidates.map(async (el) => {
+      const name = (await el.getAttribute("name"))?.toLowerCase() || "";
+      const id = (await el.getAttribute("id"))?.toLowerCase() || "";
+      const ph = (await el.getAttribute("placeholder"))?.toLowerCase() || "";
+      const hint = `${name} ${id} ${ph}`;
+      return { el, hint };
+    }),
+  )).sort((a, b) => a.hint.localeCompare(b.hint));
+
+  for (const t of telSplitHints) {
+    if (!tel1 && /(\b|_)(1|ichi|市外|area|country|part\s*1|first)/.test(t.hint)) tel1 = t.el;
+    else if (!tel2 && /(\b|_)(2|ni|市内|exchange|middle|part\s*2|second)/.test(t.hint)) tel2 = t.el;
+    else if (!tel3 && /(\b|_)(3|san|加入者|subscriber|last|part\s*3|third)/.test(t.hint)) tel3 = t.el;
+  }
+
+  if (!tel1 && !tel2 && !tel3) {
+    if (telCandidates.length === 1 && !phone) {
+      phone = telCandidates[0];
+    } else if (telCandidates.length >= 2) {
+      tel1 = telCandidates[0];
+      tel2 = telCandidates[1];
+      tel3 = telCandidates[2] ?? undefined;
+      phone = undefined;
+    }
+  }
+
+  const telCount = [tel1, tel2, tel3].filter(Boolean).length;
+  if (telCount === 1) {
+    if (!phone) phone = tel1 || tel2 || tel3;
+    tel1 = tel2 = tel3 = undefined;
+  }
+
+  const splitComplete = !!(tel1 && tel2 && tel3);
+  if (phone && !splitComplete) {
+    tel1 = tel2 = tel3 = undefined;
+  }
+
+  if (tel1 || tel2 || tel3) {
+    const [p1, p2, p3] = payload.phone_parts ?? splitPhoneJP(payload.phone);
+    await fillIfEmpty(tel1, p1);
+    await fillIfEmpty(tel2, p2);
+    await fillIfEmpty(tel3, p3);
+  } else {
+    await fillIfEmpty(phone, payload.phone);
+  }
+
+  // ---------------- 住所 ----------------
+  const zip =
+    (await pick(root, [
+      'input[name*="zip" i]',
+      'input[name*="postcode" i]',
+      'input[name*="postal" i]',
+      'input[placeholder*="郵便"]',
+      'input[placeholder*="zip" i]',
+      'input[aria-label*="zip" i]',
+    ])) ?? (await pickByLabel(root, Rx.zip)) ?? (await pickByNearbyText(root, Rx.zip, "input"));
+
+  await fillIfEmpty(zip, payload.zip);
+
+  const prefecture =
+    (await pick(root, [
+      'select[name*="pref" i]',
+      'select[id*="pref" i]',
+      'select[name*="state" i]',
+      'select[name*="province" i]',
+      'select[name*="region" i]',
+    ])) ?? (await pickByLabel(root, Rx.prefecture)) ?? (await pickByNearbyText(root, Rx.prefecture, "select"));
+
+  await selectPrefectureSafe(prefecture, payload.prefecture);
+
+  const address1 =
+    (await pick(root, [
+      'input[name*="address" i]',
+      'textarea[name*="address" i]',
+      'input[name*="street" i]',
+      'input[name*="line1" i]',
+      'textarea[name*="line1" i]',
+      'input[placeholder*="住所"]',
+      'input[placeholder*="street" i]',
+    ])) ?? (await pickByNearbyText(root, Rx.address1));
+
+  const address2 =
+    (await pick(root, [
+      'input[name*="building" i]',
+      'input[name*="addr2" i]',
+      'input[name*="line2" i]',
+      'input[name*="apt" i]',
+      'input[name*="suite" i]',
+      'input[name*="unit" i]',
+      'input[name*="room" i]',
+      'input[placeholder*="建物"]',
+      'input[placeholder*="apartment" i]',
+    ])) ?? (await pickByNearbyText(root, Rx.address2));
+
+  await fillIfEmpty(address1, payload.address1);
+  await fillIfEmpty(address2, payload.address2);
+
+  // ---------------- 件名・本文・種別 ----------------
+  const subject =
+    (await pick(root, [
+      'input[name*="subject" i]',
+      'input[id*="subject" i]',
+      'input[placeholder*="件名"]',
+      'input[placeholder*="subject" i]',
+      'input[aria-label*="subject" i]',
+      'input[name="your-subject"]',
+    ])) ?? (await pickByLabel(root, Rx.subject)) ?? (await pickByNearbyText(root, Rx.subject, "input"));
+
+  const message =
+    (await pick(root, [
+      "textarea",
+      'input[name*="message" i]',
+      'textarea[name*="message" i]',
+      'textarea[name*="comment" i]',
+      'textarea[name*="description" i]',
+      'textarea[name*="details" i]',
+      'input[placeholder*="お問い合わせ内容"]',
+      'textarea[placeholder*="message" i]',
+      'textarea[aria-label*="message" i]',
+      'textarea[name="your-message"]',
+      'textarea[name^="wpforms"][name$="[message]"]',
+    ])) ?? (await pickByLabel(root, Rx.message)) ?? (await pickByNearbyText(root, Rx.message));
+
+  const typeSelect =
+    (await pick(root, [
+      "select",
+      'select[name*="type" i]',
+      'select[name*="kind" i]',
+      'select[name*="category" i]',
+      'select[name*="purpose" i]',
+      'select[name*="reason" i]',
+      'select[name*="topic" i]',
+    ])) ?? (await pickByLabel(root, Rx.type)) ?? (await pickByNearbyText(root, Rx.type, "select"));
+
+  await fillIfEmpty(subject, payload.subject);
+  await fillIfEmpty(message, payload.message);
+
+  if (typeSelect) {
+    if (payload.type) {
+      try {
+        await typeSelect.selectOption({ label: payload.type });
+      } catch {
+        const opts = typeSelect.locator("option");
+        const cnt = await opts.count();
+        let val: string | undefined;
+        for (let i = 0; i < cnt; i++) {
+          const o = opts.nth(i);
+          const txt = (await o.innerText()).trim();
+          if (txt.includes(payload.type)) {
+            val = (await o.getAttribute("value")) ?? undefined;
+            break;
+          }
+        }
+        if (val) await typeSelect.selectOption(val);
+        else await selectPreferOtherOrFirst(typeSelect);
+      }
+    } else {
+      await selectPreferOtherOrFirst(typeSelect);
+    }
+  }
+
+  // ---------------- 同意チェックボックス ----------------
+  const consent =
+    (await pick(root, [
+      'input[type="checkbox"][name*="consent" i]',
+      'input[type="checkbox"][id*="consent" i]',
+      'input[type="checkbox"][name*="agree" i]',
+      'input[type="checkbox"][id*="agree" i]',
+      'input[type="checkbox"]',
+    ])) ?? (await pickByNearbyText(root, Rx.consent, 'input[type="checkbox"]'));
+
+  const agree = payload.agree !== false;
+  await checkIfNeeded(consent, agree);
+}
+
 /** -------------------------
  *  マッピング
  *  ------------------------- */
@@ -306,22 +779,6 @@ export async function mapFields(root: Locator): Promise<FieldMap> {
       'input[name="emailConfirmation"]',
     ])) ?? (await pickByLabel(root, Rx.emailConfirm)) ?? (await pickByNearbyText(root, Rx.emailConfirm, "input"));
 
-  // name（単一: full name）
-  out.name =
-    (await pick(root, [
-      'input[name*="fullname" i]',
-      'input[id*="fullname" i]',
-      'input[placeholder*="名前"]',
-      'input[placeholder*="氏名"]',
-      'input[placeholder*="full name" i]',
-      'input[aria-label*="full name" i]',
-      // ベンダ
-      'input[name="your-name"]',
-      'input[name="fullname"]',
-      'input[name^="wpforms"][name$="[name]"]',
-    ])) ?? (await pickByLabel(root, Rx.name)) ?? (await pickByNearbyText(root, Rx.name, "input"));
-
-  // 姓/名 分割
   out.familyName =
     (await pick(root, [
       'input[name*="sei" i]', 'input[id*="sei" i]',
@@ -329,9 +786,9 @@ export async function mapFields(root: Locator): Promise<FieldMap> {
       'input[name*="surname" i]', 'input[id*="surname" i]',
       'input[name*="family" i]', 'input[id*="family" i]',
       'input[placeholder*="姓"]',
+      'input[placeholder*="氏"]',
       'input[placeholder*="last" i]',
       'input[aria-label*="last" i]',
-      // ベンダ
       'input[name="your-lastname"]',
       'input[name="last_name"]',
       'input[name="lastname"]',
@@ -346,79 +803,159 @@ export async function mapFields(root: Locator): Promise<FieldMap> {
       'input[placeholder*="名"]',
       'input[placeholder*="first" i]',
       'input[aria-label*="first" i]',
-      // ベンダ
       'input[name="your-firstname"]',
       'input[name="first_name"]',
       'input[name="firstname"]',
       'input[name^="wpforms"][name$="[first]"]',
     ])) ?? (await pickByLabel(root, Rx.given)) ?? (await pickByNearbyText(root, Rx.given, "input"));
 
-  // カナ
+  // 2) フルネーム1フィールド（氏名/お名前/Full Name）
+  out.name =
+    (await pick(root, [
+      // 典型: fullname 系
+      'input[name*="fullname" i]',
+      'input[id*="fullname" i]',
+
+      // name 単独（first_name 等と被らないよう fullname より後ろ）
+      'input[name="name"]',
+      'input[id="name"]',
+      'input[name*="your-name" i]',
+      'input[name^="wpforms"][name$="[name]"]',
+
+      // placeholder / aria-label
+      'input[placeholder*="氏名"]',
+      'input[placeholder*="お名前"]',
+      'input[placeholder*="おなまえ"]',
+      'input[placeholder*="name" i]',
+      'input[aria-label*="氏名"]',
+      'input[aria-label*="お名前"]',
+      'input[aria-label*="name" i]',
+    ])) ?? (await pickByLabel(root, Rx.name)) ?? (await pickByNearbyText(root, Rx.name, "input"));
+
+  // 3) 衝突整理
+  // - familyName/givenName が両方取れてる場合は、それを優先して name を捨てる
+  if (out.familyName && out.givenName && out.name) {
+    if (await sameElement(out.name, out.familyName) || await sameElement(out.name, out.givenName)) {
+      // 同じフィールドを二重カウントしているだけなら name は不要
+      out.name = undefined;
+    } else {
+      // 別フィールドの場合も、splitが取れているなら name は無視（安全側）
+      out.name = undefined;
+    }
+  }
+
+  // =========================
+  //  フリガナ（カナ）
+  // =========================
+
+  // 1) セイ/メイ 分割
   out.familyKana =
     (await pick(root, [
       'input[name*="sei_kana" i]',
       'input[id*="sei_kana" i]',
-      // 英語圏の "last/family + kana"
+      'input[name*="seiKana" i]',
+      'input[id*="seiKana" i]',
+      'input[name*="last_kana" i]',
+      'input[id*="last_kana" i]',
+      'input[name*="kana_sei" i]',
+      'input[id*="kana_sei" i]',
       'input[id*="last" i][id*="kana" i]',
       'input[name*="last" i][name*="kana" i]',
       'input[id*="family" i][id*="kana" i]',
       'input[name*="family" i][name*="kana" i]',
-      // プレースホルダヒント
       'input[placeholder*="セイ"]',
     ])) ??
     (await pickByLabel(root, Rx.familyKana)) ??
     (await pickByNearbyText(root, Rx.familyKana, "input"));
-
   out.givenKana =
     (await pick(root, [
       'input[name*="mei_kana" i]',
       'input[id*="mei_kana" i]',
-      // 英語圏の "first/given + kana"
+      'input[name*="meiKana" i]',
+      'input[id*="meiKana" i]',
+      'input[name*="first_kana" i]',
+      'input[id*="first_kana" i]',
+      'input[name*="kana_mei" i]',
+      'input[id*="kana_mei" i]',
       'input[id*="first" i][id*="kana" i]',
       'input[name*="first" i][name*="kana" i]',
       'input[id*="given" i][id*="kana" i]',
       'input[name*="given" i][name*="kana" i]',
-      // プレースホルダヒント
       'input[placeholder*="メイ"]',
     ])) ??
     (await pickByLabel(root, Rx.givenKana)) ??
     (await pickByNearbyText(root, Rx.givenKana, "input"));
 
-  // --- フォールバック: kana 全件スキャンして振り分け ---
+  // 2) カナ1フィールド系（フリガナだけ1つ）のフォールバック
   if (!out.familyKana || !out.givenKana || await sameElement(out.familyKana, out.givenKana)) {
     const kanaCandidates = await root
-      .locator('input[name*="kana" i], input[id*="kana" i], input[placeholder*="カナ"], input[placeholder*="フリガナ"]')
+      .locator(
+        [
+          'input[name*="kana" i]',
+          'input[id*="kana" i]',
+          'input[placeholder*="カナ"]',
+          'input[placeholder*="フリガナ"]',
+          'input[placeholder*="ふりがな"]',
+          'input[placeholder*="フリガナ（セイ メイ"]',
+          'input[placeholder*="セイ メイ"]',
+        ].join(","),
+      )
       .all();
 
     type KH = { el: Locator; hint: string };
     const hints: KH[] = [];
     for (const el of kanaCandidates) {
-      const [name, id, ph] = await Promise.all([
-        el.getAttribute("name"), el.getAttribute("id"), el.getAttribute("placeholder"),
+      const [name, id, ph, labelText] = await Promise.all([
+        el.getAttribute("name"),
+        el.getAttribute("id"),
+        el.getAttribute("placeholder"),
+        // ラベルテキストもヒントに混ぜる
+        (async () => {
+          try {
+            const lab = await el.locator("xpath=ancestor-or-self::label[1]").innerText().catch(() => "");
+            return lab;
+          } catch {
+            return "";
+          }
+        })(),
       ]);
-      const hint = `${(name || "").toLowerCase()} ${(id || "").toLowerCase()} ${(ph || "").toLowerCase()}`;
+      const hint = `${(name || "").toLowerCase()} ${(id || "").toLowerCase()} ${(ph || "").toLowerCase()} ${(labelText || "").toLowerCase()}`;
       hints.push({ el, hint });
     }
 
+    // 2-1) first/given/mei を含むもの → 名側
+    //      last/family/sei を含むもの → 姓側
     for (const h of hints) {
-      if (!out.givenKana && /(first|given|mei)/.test(h.hint)) out.givenKana = h.el;
-      if (!out.familyKana && /(last|family|sei)/.test(h.hint)) out.familyKana = h.el;
+      if (!out.givenKana && /(first|given|mei|メイ|めい)/.test(h.hint)) out.givenKana = h.el;
+      if (!out.familyKana && /(last|family|sei|セイ|せい)/.test(h.hint)) out.familyKana = h.el;
     }
 
-    if ((!out.familyKana || !out.givenKana) || await sameElement(out.familyKana, out.givenKana)) {
-      if (!out.familyKana && hints[0]) out.familyKana = hints[0].el;
-      if (!out.givenKana && hints[1]) out.givenKana = hints[1].el;
+    // 2-2) それでも埋まらない場合：
+    //  - カナ1フィールドだけとみなして familyKana/givenKana に同じ要素を割り当て
+    if ((!out.familyKana && !out.givenKana) && hints[0]) {
+      out.familyKana = hints[0].el;
+      out.givenKana = hints[0].el;
+    } else if ((!out.familyKana || !out.givenKana) && hints.length >= 2) {
+      // 2フィールド以上あるが分類しきれない → 先頭2つを分割として使う
+      out.familyKana = out.familyKana ?? hints[0].el;
+      out.givenKana = out.givenKana ?? hints[1].el;
+    }
 
-      if (await sameElement(out.familyKana, out.givenKana)) {
-        if (out.familyKana) {
-          const [fn, fi] = await Promise.all([out.familyKana.getAttribute("name"), out.familyKana.getAttribute("id")]);
-          const fHint = `${(fn || "").toLowerCase()} ${(fi || "").toLowerCase()}`;
-          if (/(first|given|mei)/.test(fHint)) {
-            out.familyKana = undefined;
-          } else {
-            out.givenKana = undefined;
-          }
+    // 2-3) familyKana/givenKana が同一要素を指しているなら、
+    //      - 片方だけ残す → fillPair が fused を入れるので動作上はOK
+    if (await sameElement(out.familyKana, out.givenKana)) {
+      // どちら側に残すか：ラベルにセイ/メイが含まれる方を優先
+      if (out.familyKana) {
+        const [fn, fi] = await Promise.all([
+          out.familyKana.getAttribute("name"),
+          out.familyKana.getAttribute("id"),
+        ]);
+        const fHint = `${(fn || "").toLowerCase()} ${(fi || "").toLowerCase()}`;
+        if (/(first|given|mei)/.test(fHint)) {
+          // 名寄り → givenKana を残し、familyKana を捨てる
+          out.familyKana = undefined;
         } else {
+          // 姓寄り or その他 → familyKana 残し
           out.givenKana = undefined;
         }
       }
@@ -581,7 +1118,7 @@ export async function mapFields(root: Locator): Promise<FieldMap> {
 
   out.typeSelect =
     (await pick(root, [
-	  'select',
+      'select',
       'select[name*="type" i]',
       'select[name*="kind" i]',
       'select[name*="category" i]',
@@ -610,14 +1147,14 @@ export async function fillFields(map: FieldMap, payload: SubmitPayload) {
   const fill = async (el?: Locator, v?: string) => {
     try {
       if (el && typeof v === "string" && v.length > 0) await el.fill(v);
-    } catch {}
+    } catch { }
   };
   const check = async (el?: Locator, v: boolean = true) => {
     if (!el) return;
     try {
       if (v) await el.check?.();
       else await el.uncheck?.();
-    } catch {/* ignore */}
+    } catch {/* ignore */ }
   };
 
   // ペア入力の対称ヘルパ
@@ -732,9 +1269,9 @@ export async function fillFields(map: FieldMap, payload: SubmitPayload) {
     }
   }
 
-  // 同意（デフォルト true 扱い）
-  const agree = payload.agree !== false;
-  await check(map.consent, agree);
+  //   // 同意（デフォルト true 扱い）
+  //   const agree = payload.agree !== false;
+  await check(map.consent, true);
 }
 
 export async function click(loc?: Locator) {
@@ -797,29 +1334,29 @@ async function selectPreferOtherOrFirst(
 ): Promise<boolean> {
   const opts = await listOptions(select);
   if (opts.length === 0) return false;
-//   const usable = opts.filter((o) => !o.disabled && !o.hidden && !isPlaceholder(o.label, o.value));
-//   if (usable.length === 0) return false;
+  //   const usable = opts.filter((o) => !o.disabled && !o.hidden && !isPlaceholder(o.label, o.value));
+  //   if (usable.length === 0) return false;
 
   for (const opt of opts) {
-	if (opt.value != "") {
-		try { await select.selectOption({ index: opt.index }); return true; } catch {}
-	}
+    if (opt.value != "") {
+      try { await select.selectOption({ index: opt.index }); return true; } catch { }
+    }
   }
   return false;
 
-//   for (const rx of preferredLabels) {
-//     const hit = usable.find((o) => rx.test(o.label));
-//     if (hit) {
-//       try { await select.selectOption({ index: hit.index }); return true; } catch {}
-//     }
-//   }
-//   try { await select.selectOption({ index: usable[0].index }); return true; } catch { return false; }
+  //   for (const rx of preferredLabels) {
+  //     const hit = usable.find((o) => rx.test(o.label));
+  //     if (hit) {
+  //       try { await select.selectOption({ index: hit.index }); return true; } catch {}
+  //     }
+  //   }
+  //   try { await select.selectOption({ index: usable[0].index }); return true; } catch { return false; }
 }
 
 /** Radio版「その他」優先選択（無ければ最初の有効なもの） */
 async function chooseRadioPreferOtherOrFirst(container: Locator): Promise<boolean> {
   const radios = container.locator('input[type="radio"]');
-  const lbls   = container.locator('label');
+  const lbls = container.locator('label');
 
   const cnt = await radios.count();
   if (!cnt) return false;
@@ -838,7 +1375,7 @@ async function chooseRadioPreferOtherOrFirst(container: Locator): Promise<boolea
       const l = lbls.nth(i);
       const t = (await l.innerText().catch(() => ""))?.trim() || "";
       if (!rx.test(t)) continue;
-      try { await l.click({ force: true }); return true; } catch {}
+      try { await l.click({ force: true }); return true; } catch { }
     }
     return false;
   };
@@ -852,7 +1389,7 @@ async function chooseRadioPreferOtherOrFirst(container: Locator): Promise<boolea
     const r = radios.nth(i);
     const disabled = await r.isDisabled().catch(() => false);
     if (!disabled) {
-      try { await r.check({ force: true }); return true; } catch {}
+      try { await r.check({ force: true }); return true; } catch { }
     }
   }
   return false;
