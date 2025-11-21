@@ -37,6 +37,7 @@
         <div class="tabs">
             <button class="tab-btn active" data-tab="profiles">プロファイル管理</button>
             <button class="tab-btn" data-tab="submit">送信実行</button>
+            <button class="tab-btn" data-tab="jobs">実行中のジョブ</button>
             <button class="tab-btn" data-tab="logs">送信履歴</button>
         </div>
 
@@ -113,6 +114,17 @@
                 <div id="jobStatus" style="display: none;" class="job-status">
                     <p></p>
                 </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="jobs">
+            <div class="section-header">
+                <h2>実行中のジョブ</h2>
+                <button class="btn btn-secondary" id="refreshJobsBtn">🔄 更新</button>
+            </div>
+
+            <div id="jobsContainer">
+                <!-- Jobs will be loaded here -->
             </div>
         </div>
 

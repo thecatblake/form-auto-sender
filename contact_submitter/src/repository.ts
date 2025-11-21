@@ -127,7 +127,7 @@ export class Repository {
         try {
             const placeholders = urls.map((_, i) => `$${i + 1}`).join(',');
             const result = await query<{ root_url: string }>(
-                `SELECT DISTINCT root_url FROM submission_logs WHERE root_url IN (${placeholders}) AND result = 'success'`,
+                `SELECT DISTINCT root_url FROM submission_logs WHERE root_url IN (${placeholders})`,
                 urls
             );
             const submittedUrls = new Set(result.map(r => r.root_url));

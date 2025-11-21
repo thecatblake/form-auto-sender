@@ -115,7 +115,7 @@ app.get("/api/stats", async (req, res) => {
 // Job tracking
 interface JobStatus {
     id: string;
-    status: 'running' | 'completed' | 'failed';
+    status: 'running' | 'completed' | 'failed' | 'cancelled';
     totalUrls: number;
     processedUrls: number;
     successCount: number;
@@ -251,6 +251,37 @@ app.post("/api/submit-job", async (req, res) => {
     } catch (e) {
         logger.error(`POST /api/submit-job failed: ${e}`);
         res.status(500).json({ error: "Failed to start job" });
+    }
+});
+
+// Cancel/Stop a job
+app.delete("/api/jobs/:jobId", async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const job = activeJobs.get(jobId);
+
+        if (!job) {
+            return res.status(404).json({ error: "Job not found" });
+        }
+
+        if (job.status !== 'running') {
+            return res.status(400).json({ error: "Job is not running" });
+        }
+
+        // Mark job as cancelled
+        job.status = 'cancelled';
+        job.endTime = new Date();
+        job.logs.push(`Job cancelled by user at ${job.endTime.toISOString()}`);
+
+        logger.info(`Job ${jobId} cancelled by user`);
+
+        res.json({
+            message: "Job cancelled successfully",
+            jobId: jobId
+        });
+    } catch (e: any) {
+        logger.error(`DELETE /api/jobs/:jobId failed: ${e}`);
+        res.status(500).json({ error: "Failed to cancel job" });
     }
 });
 

@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     loadProfiles();
     loadLogs();
+    loadJobs();
     setupEventListeners();
 });
 
@@ -19,6 +20,9 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             const tab = btn.dataset.tab;
             switchTab(tab);
+            if (tab === 'jobs') {
+                loadJobs(); // Refresh jobs when tab is opened
+            }
         });
     });
 
@@ -27,6 +31,9 @@ function setupEventListeners() {
     document.getElementById('closeModal').addEventListener('click', closeProfileModal);
     document.getElementById('cancelBtn').addEventListener('click', closeProfileModal);
     document.getElementById('profileForm').addEventListener('submit', handleProfileSubmit);
+
+    // Jobs refresh
+    document.getElementById('refreshJobsBtn').addEventListener('click', () => loadJobs());
 
     // Logs pagination
     document.getElementById('refreshLogsBtn').addEventListener('click', () => loadLogs());
@@ -396,5 +403,104 @@ function escapeHtml(text) {
 
 function exportLogsAsCsv() {
     window.location.href = `${API_BASE}/logs/export`;
+}
+
+async function loadJobs() {
+    try {
+        const res = await fetch(`${API_BASE}/jobs`);
+        const jobs = await res.json();
+
+        const container = document.getElementById('jobsContainer');
+
+        if (jobs.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">実行中のジョブはありません</div>';
+            return;
+        }
+
+        container.innerHTML = jobs.map(job => {
+            const progress = job.totalUrls > 0 ? Math.round((job.processedUrls / job.totalUrls) * 100) : 0;
+            const statusIcon = job.status === 'running' ? '🔄' : job.status === 'completed' ? '✅' : job.status === 'cancelled' ? '🚫' : '❌';
+            const statusText = job.status === 'running' ? '実行中' : job.status === 'completed' ? '完了' : job.status === 'cancelled' ? 'キャンセル済み' : '失敗';
+
+            const startTime = new Date(job.startTime).toLocaleString('ja-JP');
+            const endTime = job.endTime ? new Date(job.endTime).toLocaleString('ja-JP') : '-';
+
+            return `
+                <div class="job-card" data-job-id="${job.id}">
+                    <div class="job-header">
+                        <div>
+                            <h3>${statusIcon} ${job.profileName}</h3>
+                            <p class="job-id">Job ID: ${job.id}</p>
+                        </div>
+                        <div class="job-status-badge status-${job.status}">${statusText}</div>
+                    </div>
+                    
+                    <div class="job-stats">
+                        <div class="job-stat">
+                            <span class="job-stat-label">進捗</span>
+                            <span class="job-stat-value">${job.processedUrls} / ${job.totalUrls} (${progress}%)</span>
+                        </div>
+                        <div class="job-stat">
+                            <span class="job-stat-label">成功</span>
+                            <span class="job-stat-value" style="color: var(--success)">${job.successCount}</span>
+                        </div>
+                        <div class="job-stat">
+                            <span class="job-stat-label">失敗</span>
+                            <span class="job-stat-value" style="color: var(--fail)">${job.failCount}</span>
+                        </div>
+                    </div>
+
+                    <div class="job-progress-bar">
+                        <div class="job-progress-fill" style="width: ${progress}%"></div>
+                    </div>
+
+                    <div class="job-times">
+                        <div><strong>開始:</strong> ${startTime}</div>
+                        <div><strong>終了:</strong> ${endTime}</div>
+                    </div>
+
+                    ${job.currentUrl ? `<div class="job-current-url"><strong>処理中:</strong> ${escapeHtml(job.currentUrl)}</div>` : ''}
+
+                    <div class="job-logs">
+                        <strong>ログ (最新5件):</strong>
+                        <div class="job-logs-box">
+                            ${job.logs.slice(-5).map(log => `<div>${escapeHtml(log)}</div>`).join('')}
+                        </div>
+                    </div>
+
+                    ${job.status === 'running' ? `
+                        <button class="btn btn-danger" onclick="cancelJob('${job.id}')">🛑 ジョブを停止</button>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error('Failed to load jobs:', e);
+        document.getElementById('jobsContainer').innerHTML =
+            '<div style="text-align: center; padding: 40px; color: var(--fail);">ジョブの読み込みに失敗しました</div>';
+    }
+}
+
+async function cancelJob(jobId) {
+    if (!confirm('このジョブを停止しますか？')) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
+            method: 'DELETE'
+        });
+
+        if (res.ok) {
+            alert('ジョブを停止しました');
+            loadJobs(); // Refresh jobs list
+        } else {
+            const error = await res.json();
+            alert(`エラー: ${error.error}`);
+        }
+    } catch (e) {
+        console.error('Failed to cancel job:', e);
+        alert('ジョブの停止に失敗しました');
+    }
 }
 
