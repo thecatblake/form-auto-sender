@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Auto Sender - 管理画面</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📧 Form Auto Sender</h1>
+            <p class="subtitle">プロファイル管理 & 送信結果確認</p>
+        </header>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="stat-label">総送信数</div>
+                <div class="stat-value" id="statTotal">0</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-label">成功</div>
+                <div class="stat-value" id="statSuccess">0</div>
+            </div>
+            <div class="stat-card fail">
+                <div class="stat-label">失敗</div>
+                <div class="stat-value" id="statFail">0</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="stat-label">保留</div>
+                <div class="stat-value" id="statPending">0</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="profiles">プロファイル管理</button>
+            <button class="tab-btn" data-tab="submit">送信実行</button>
+            <button class="tab-btn" data-tab="jobs">実行中のジョブ</button>
+            <button class="tab-btn" data-tab="logs">送信履歴</button>
+        </div>
+
+        <div class="tab-content active" id="profiles">
+            <div class="section-header">
+                <h2>プロファイル一覧</h2>
+                <button class="btn btn-primary" id="newProfileBtn">+ 新規プロファイル</button>
+            </div>
+
+            <div class="profiles-grid" id="profilesGrid">
+                <!-- Profiles will be loaded here -->
+            </div>
+
+            <!-- Profile Form Modal -->
+            <div class="modal" id="profileModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="modalTitle">新規プロファイル</h3>
+                        <button class="close-btn" id="closeModal">&times;</button>
+                    </div>
+                    <form id="profileForm">
+                        <div class="form-group">
+                            <label for="profileName">プロファイル名 *</label>
+                            <input type="text" id="profileName" required placeholder="例: テスト太郎">
+                        </div>
+                        <div class="form-group">
+                            <label for="profileData">プロファイルデータ (JSON) *</label>
+                            <textarea id="profileData" rows="10" required placeholder='{
+  "name": "テスト 太郎",
+  "email": "test@example.com",
+  "company": "株式会社テスト",
+  "phone": "03-1234-5678",
+  "message": "お問い合わせ内容"
+}'></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="cancelBtn">キャンセル</button>
+                            <button type="submit" class="btn btn-primary">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="submit">
+            <div class="section-header">
+                <h2>送信実行</h2>
+            </div>
+
+            <div class="submit-container">
+                <div class="form-group">
+                    <label for="profileSelect">プロファイル選択 *</label>
+                    <select id="profileSelect" class="profile-select">
+                        <option value="">プロファイルを選択してください</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fileInput">ファイルアップロード (TXT/CSV) *</label>
+                    <input type="file" id="fileInput" accept=".txt,.csv" class="file-input">
+                    <p class="help-text">TXT: 1行1URL / CSV: 最初の列がURL</p>
+                </div>
+
+                <div class="form-group" id="urlPreview" style="display: none;">
+                    <label>読み込まれたURL (最初の10件)</label>
+                    <div class="url-preview-box" id="urlPreviewBox"></div>
+                    <p class="help-text" id="urlCount"></p>
+                </div>
+
+                <button class="btn btn-primary btn-large" id="submitJobBtn" disabled>
+                    🚀 送信開始
+                </button>
+
+                <div id="jobStatus" style="display: none;" class="job-status">
+                    <p></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="jobs">
+            <div class="section-header">
+                <h2>実行中のジョブ</h2>
+                <button class="btn btn-secondary" id="refreshJobsBtn">🔄 更新</button>
+            </div>
+
+            <div id="jobsContainer">
+                <!-- Jobs will be loaded here -->
+            </div>
+        </div>
+
+        <div class="tab-content" id="logs">
+            <div class="section-header">
+                <h2>送信履歴</h2>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-secondary" id="exportCsvBtn">📥 CSV出力</button>
+                    <button class="btn btn-secondary" id="refreshLogsBtn">🔄 更新</button>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table class="logs-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>送信時刻</th>
+                            <th>HP</th>
+                            <th>送信URL</th>
+                            <th>結果</th>
+                            <th>プロファイル名</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Logs will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button class="btn btn-secondary" id="prevPage">← 前へ</button>
+                <span id="pageInfo">Page 1</span>
+                <button class="btn btn-secondary" id="nextPage">次へ →</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
