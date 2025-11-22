@@ -54,7 +54,7 @@
 
     - name: build rust server
       shell: |
-        source $HOME/.bashrc
+        source /home/deploy/.bashrc
         cd {{ app_dir }}/{{ rust_server_name }}
         cargo build --release
       args:
@@ -62,8 +62,8 @@
 
     - name: copy rust server to /usr/local/bin
       copy:
-        src: "{{ app_dir }}/{{ rust_server_name }}/target/release/{{ binary_name }}"
-        dest: "/usr/local/bin/{{ binary_name }}"
+        src: "{{ app_dir }}/{{ rust_server_name }}/target/release/{{ rust_server_name }}"
+        dest: "/usr/local/bin/{{ rust_server_name }}"
         mode: "0755"
     
     - name: create systemd service for rust
