@@ -53,20 +53,23 @@
         force: yes
 
     - name: build rust server
+      become_user: deploy
       shell: |
-        source /home/deploy/.bashrc
+        export PATH="$HOME/.cargo/bin:$PATH"
         cd {{ app_dir }}/{{ rust_server_name }}
         cargo build --release
       args:
         chdir: "{{ app_dir }}"
 
     - name: copy rust server to /usr/local/bin
+      become_user: deploy
       copy:
         src: "{{ app_dir }}/{{ rust_server_name }}/target/release/{{ rust_server_name }}"
         dest: "/usr/local/bin/{{ rust_server_name }}"
         mode: "0755"
     
     - name: create systemd service for rust
+      become_user: deploy
       copy:
         dest: /etc/systemd/system/{{ rust_server_name }}.service
         content: |
@@ -83,6 +86,7 @@
           WantedBy=multi-user.target
     
     - name: Enable and start systemd
+      become_user: deploy
       systemd:
         name: "{{ rust_server_name }}"
         state: restarted
