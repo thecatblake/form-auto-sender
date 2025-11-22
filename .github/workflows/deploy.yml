@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -29,7 +32,7 @@ jobs:
           echo "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-      
+
       - name: Run ansible playbook
         run: |
           cd ansible
