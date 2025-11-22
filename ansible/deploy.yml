@@ -64,10 +64,14 @@
         chdir: "{{ app_dir }}"
 
     - name: copy rust server to /usr/local/bin
+      become: yes
       copy:
+        remote_src: true
         src: "{{ app_dir }}/{{ rust_server_name }}/target/release/{{ rust_server_name }}"
         dest: "/usr/local/bin/{{ rust_server_name }}"
         mode: "0755"
+        owner: root
+        group: root
     
     - name: create systemd service for rust
       copy:
