@@ -22,6 +22,12 @@
         update_cache: yes
         state: present
 
+    - name: Create Prometheus group
+      group:
+        name: "{{ prometheus_group }}"
+        system: yes
+
+
     - name: Create Prometheus user and group
       user:
         name: "{{ prometheus_user }}"
@@ -98,3 +104,14 @@
       notify:
         - Daemon reload
         - Restart Prometheus
+
+  handlers:
+    - name: Daemon reload
+      systemd:
+        daemon_reload: yes
+
+    - name: Restart Prometheus
+      systemd:
+        name: prometheus
+        enabled: yes
+        state: restarted
