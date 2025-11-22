@@ -1,0 +1,38 @@
+name: deploy to ec2 via ansible
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup ansible
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ansible
+      
+      - name: Setup ssh keys for ansible
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+      
+      - name: Run ansible playbook
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.ini deploy.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"

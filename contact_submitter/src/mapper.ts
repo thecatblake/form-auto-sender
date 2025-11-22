@@ -87,6 +87,8 @@ export type SubmitPayload = {
   mei?: string;
   sei_kana?: string;
   mei_kana?: string;
+  furigana_mei?: string;
+  furigana_sei?: string;
 
   // 企業
   company?: string;

@@ -102,15 +102,13 @@ export async function fillFields(root: Locator, payload: SubmitPayload) {
             handled = true;
         }
 
-        // --- address2 ---
         if (!handled && Rx.address2.test(hint)) {
             await safe(() => input_locator.fill(payload.address2 ?? ""));
             handled = true;
         }
 
-        // 以下、他も raw_input → hint に差し替えていくと安定する
         if (!handled && Rx.givenKana.test(hint)) {
-            await safe(() => input_locator.fill(payload.mei_kana ?? ""));
+            await safe(() => input_locator.fill(payload.mei_kana ?? payload.furigana_mei ?? ""));
             handled = true;
         }
 
@@ -120,7 +118,7 @@ export async function fillFields(root: Locator, payload: SubmitPayload) {
         }
 
         if (!handled && Rx.familyKana.test(hint)) {
-            await safe(() => input_locator.fill(payload.sei_kana ?? ""));
+            await safe(() => input_locator.fill(payload.sei_kana ?? payload.furigana_sei ?? ""));
             handled = true;
         }
 
