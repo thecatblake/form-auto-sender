@@ -111,8 +111,8 @@
       file:
         path: "{{ node_exporter_install_dir }}"
         state: directory
-        owner: "{{ node_exporter_user }}"
-        group: "{{ node_exporter_group }}"
+        owner: "{{ prometheus_user }}"
+        group: "{{ prometheus_group }}"
         mode: "0755"
 
     - name: Download node_exporter
