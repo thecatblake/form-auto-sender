@@ -7,6 +7,7 @@
     app_dir: /var/www/app
     repo_url: "https://github.com/thecatblake/form-auto-sender.git"
     branch: "main"
+    rust_server_name: contact_discovery
 
   tasks:
     - name: install packages
@@ -15,8 +16,24 @@
           - git
           - nodejs
           - npm
+          - build-essentials
+          - pkg-config
+          - libssl-dev
+          - curl
         state: present
         update_cache: yes
+
+    - name: Download rustup installer
+      get_url:
+        url: https://sh.rustup.rs
+        dest: "/home/deploy/rustup-init.sh"
+        mode: "0755"
+
+    - name: Install rust
+      shell: |
+        /home/{{ rust_user }}/rustup-init.sh -y --no-modify-path
+      args:
+        creates: "/home/deploy/.cargo/bin/rustc"
 
     - name: mkdir app
       file:
@@ -34,6 +51,42 @@
         dest: "{{ app_dir }}"
         version: "{{ branch }}"
         force: yes
+
+    - name: build rust server
+      shell: |
+        source $HOME/.bashrc
+        cd {{ app_dir }}/{{ rust_server_name }}
+        cargo build --release
+      args:
+        chdir: "{{ app_dir }}"
+
+    - name: copy rust server to /usr/local/bin
+      copy:
+        src: "{{ app_dir }}/{{ rust_server_name }}/target/release/{{ binary_name }}"
+        dest: "/usr/local/bin/{{ binary_name }}"
+        mode: "0755"
+    
+    - name: create systemd service for rust
+      copy:
+        dest: /etc/systemd/system/{{ rust_server_name }}.service
+        content: |
+          [Unit]
+          Description=Rust App {{ rust_server_name }}
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/{{ rust_server_name }}
+          Restart=always
+          User={{ rust_user }}
+
+          [Install]
+          WantedBy=multi-user.target
+    
+    - name: Enable and start systemd
+      systemd:
+        name: "{{ rust_server_name }}"
+        state: restarted
+        enabled: yes
 
     - name: npm install
       become: yes
