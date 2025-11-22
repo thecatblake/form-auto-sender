@@ -34,5 +34,6 @@ jobs:
         run: |
           cd ansible
           ansible-playbook -i inventory.ini deploy.yml
+          ansible-playbook -i inventory.ini monitoring.yml
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
