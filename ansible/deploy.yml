@@ -16,7 +16,7 @@
           - git
           - nodejs
           - npm
-          - build-essentials
+          - build-essential
           - pkg-config
           - libssl-dev
           - curl
