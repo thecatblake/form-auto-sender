@@ -31,7 +31,7 @@
 
     - name: Install rust
       shell: |
-        /home/{{ rust_user }}/rustup-init.sh -y --no-modify-path
+        /home/deploy/rustup-init.sh -y --no-modify-path
       args:
         creates: "/home/deploy/.cargo/bin/rustc"
 
@@ -77,7 +77,7 @@
           [Service]
           ExecStart=/usr/local/bin/{{ rust_server_name }}
           Restart=always
-          User={{ rust_user }}
+          User=deploy
 
           [Install]
           WantedBy=multi-user.target
