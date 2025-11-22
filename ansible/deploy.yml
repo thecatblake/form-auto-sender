@@ -5,7 +5,7 @@
 
   vars:
     app_dir: /var/www/app
-    repo_url: "git@github.com:thecatblake/form-auto-sender.git"
+    repo_url: "https://github.com/thecatblake/form-auto-sender.git"
     branch: "main"
 
   tasks:
