@@ -100,14 +100,14 @@
       become_user: deploy
       npm:
         path: "{{ app_dir }}/contact_submitter"
-        production: yes
+        production: no
 
     - name: npm install for gateway
       become: yes
       become_user: deploy
       npm:
         path: "{{ app_dir }}/gateway"
-        production: yes
+        production: no
 
     - name: Build gateway
       command: npm run build

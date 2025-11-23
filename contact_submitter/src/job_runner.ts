@@ -1,4 +1,4 @@
-import { chromium, Browser, Page } from "playwright";
+import { chromium, Browser, Page, BrowserContext } from "playwright";
 import { DiscoverReq, DiscoverRes, Profile } from "./api";
 import pLimit from "p-limit";
 import { logger } from "./logger";
@@ -73,6 +73,10 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
     }
 
     return result;
+}
+
+async function submitPayload(context: BrowserContext) {
+    
 }
 
 export async function runSubmissionJob(
