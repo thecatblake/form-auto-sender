@@ -6,7 +6,7 @@ After=network.target
 User=ubuntu
 Group=ubuntu
 Type=simple
-ExecStart=/usr/local/bin/node {{ app_dir }}/gateway/dist/index.js
+ExecStart=/usr/bin/node {{ app_dir }}/gateway/dist/index.js
 
 Restart=always
 RestartSec=3
