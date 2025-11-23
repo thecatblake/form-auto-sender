@@ -41,19 +41,10 @@
         state: present
       notify: Restart PostgreSQL
 
-    - name: Allow local postgres user to connect without password
-      become: yes
-      lineinfile:
-        path: "{{ postgres_conf_dir }}/pg_hba.conf"
-        regexp: '^local\s+all\s+postgres\s+'
-        line: 'local   all             postgres                                trust'
-        state: present
-      notify: Restart PostgreSQL
-
-
     - name: Create application database user
       tags: install
       become: yes
+      become_user: postgres
       community.postgresql.postgresql_user:
         name: "{{ postgres_user }}"
         password: "{{ postgres_password }}"
@@ -63,6 +54,7 @@
     - name: Create application database
       tags: install
       become: yes
+      become_user: postgres
       community.postgresql.postgresql_db:
         name: "{{ postgres_db_name }}"
         owner: "{{ postgres_user }}"
