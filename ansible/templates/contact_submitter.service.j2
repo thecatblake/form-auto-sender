@@ -1,0 +1,15 @@
+[Unit]
+Description=Contact Submitter Serivce
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+Type=simple
+ExecStart=/usr/bin/node {{ app_dir }}/contact_submitter/dist/worker.js
+
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

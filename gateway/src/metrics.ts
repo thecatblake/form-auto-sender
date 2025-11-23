@@ -4,13 +4,20 @@ const register = new client.Registry();
 
 client.collectDefaultMetrics({
 	register
-})
+});
 
 const submissionCounter = new client.Counter({
 	name: "submission total",
 	help: "The number of submission accepted",
 });
 
-register.registerMetric(submissionCounter);
+const discoverDuration = new client.Histogram({
+	name: "discover request duration",
+	help: "The duration of the contact discover api request",
+	buckets: [0.1, 0.5, 1, 5, 10, 15]
+});
 
-export { register, submissionCounter };
+register.registerMetric(submissionCounter);
+register.registerMetric(discoverDuration);
+
+export { register, submissionCounter, discoverDuration };

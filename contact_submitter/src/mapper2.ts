@@ -1,5 +1,41 @@
 import { Locator } from "playwright";
-import { SubmitPayload } from "./mapper";
+
+export type SubmitPayload = {
+  // 氏名
+  name?: string; // 「姓 名」や「名 姓」でもOK（半角/全角スペース分割）
+  kana?: string;
+  sei?: string;
+  mei?: string;
+  sei_kana?: string;
+  mei_kana?: string;
+  furigana_mei?: string;
+  furigana_sei?: string;
+
+  // 企業
+  company?: string;
+  department?: string;
+  title?: string;
+
+  // 連絡
+  email?: string;
+  phone?: string;                 // 03-xxxx-xxxx など
+  phone_parts?: [string, string, string]; // 3分割で指定したい場合
+
+  // 住所
+  zip?: string;
+  post_code?: string;
+  prefecture?: string;
+  address1?: string;
+  address2?: string;
+
+  // 問い合わせ
+  subject?: string;
+  message?: string;
+  type?: string;                  // セレクトに合わせる（例: "資料請求"）
+
+  // 同意
+  agree?: boolean;                // 省略時はtrue相当でチェック
+};
 
 const Rx = {
     // 氏名系

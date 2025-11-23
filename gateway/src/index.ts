@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { createClient } from "redis";
-import { register, submissionCounter } from "./metrics";
+import { discoverDuration, register, submissionCounter } from "./metrics";
+import { discover_request } from "./discover_api";
 
 interface SubmitPayload {
 	url: string;
@@ -13,6 +14,19 @@ const PORT = process.env.PORT ?? 3000;
 
 const redis = createClient();
 const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
+
+async function discover_and_push(url: string, profile: Record<string, string>) {
+	const discover_results = await discover_request(url);
+
+	const payloads = discover_results
+		.filter(result => result.score > 50)
+		.map(result => JSON.stringify({url: result.url, profile}))
+	const push_res = await redis.lPush(QUEUE_KEY, payloads);
+
+	if (push_res == 0)
+		return 0;
+	return payloads.length;
+}
 
 redis.on('error', err => console.log('Redis Client Error', err));
 
@@ -32,7 +46,9 @@ redis
 			return res.status(400).json({ error: "url and profile are required"})
 		}
 
-		const push_res = await redis.lPush(QUEUE_KEY, JSON.stringify({ url, profile }));
+		const endTimer = discoverDuration.startTimer();
+		const push_res = await discover_and_push(url, profile);
+		endTimer();
 
 		if (push_res == 0) {
 			res.status(500).json({
@@ -40,7 +56,7 @@ redis
 			})
 		}
 
-		submissionCounter.inc()
+		submissionCounter.inc(push_res);
 
 		res.status(202).json({
 			message: "Jon accepted",
@@ -49,10 +65,14 @@ redis
 		})
 	});
 
-	app.post("/submit-batch", (req: Request, res: Response) => {
+	app.post("/submit-batch", async (req: Request, res: Response) => {
 		const payloads = req.body as SubmitPayload[];
 
-		redis.lPush(QUEUE_KEY, JSON.stringify(payloads));
+		for (const payload of payloads) {
+			const endTimer = discoverDuration.startTimer();
+			await discover_and_push(payload.url, payload.profile);
+			endTimer();
+		}
 
 		res.status(202).json({
 			message: "Jon accepted"

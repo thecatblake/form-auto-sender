@@ -122,11 +122,37 @@
         path: "{{ app_dir }}/gateway"
         production: no
 
+    - name: Build contact submitter
+      tags: build
+      command: npm run build
+      args:
+        chdir: "{{ app_dir }}/contact_submitter"
+
     - name: Build gateway
       tags: build
       command: npm run build
       args:
         chdir: "{{ app_dir }}/gateway"
+
+    - name: Deploy contact submitter config 
+      template:
+        src: "templates/contact_submitter.service.j2"
+        dest: "/etc/systemd/system/contact_submitter.service"
+        owner: "ubuntu"
+        group: "ubuntu"
+        mode: "0644"
+
+    - name: Install systemd unit for contact submitter
+      tags: build
+      template:
+        src: "contact_submitter.service"
+        dest: "/etc/systemd/system/contact_submitter.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - daemon-reload
+        - restart contact submitter
 
     - name: Install systemd unit for gateway
       tags: build
@@ -150,5 +176,12 @@
       tags: restart
       systemd:
         name: "gateway"
+        state: restarted
+        enabled: yes
+    
+    - name: restart contact submitter
+      tags: restart
+      systemd:
+        name: "contact_submitter"
         state: restarted
         enabled: yes
