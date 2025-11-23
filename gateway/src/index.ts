@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { createClient } from "redis";
+import { register, submissionCounter } from "./metrics";
 
 interface SubmitPayload {
 	url: string;
@@ -8,6 +9,7 @@ interface SubmitPayload {
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
+
 
 const redis = createClient();
 const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
@@ -23,14 +25,22 @@ redis
 		res.status(200).json({ status: "ok" });
 	});
 
-	app.post("/submit", (req: Request, res: Response) => {
+	app.post("/submit", async (req: Request, res: Response) => {
 		const { url, profile } = req.body as SubmitPayload;
 
 		if (!url || !profile) {
 			return res.status(400).json({ error: "url and profile are required"})
 		}
 
-		redis.lPush(QUEUE_KEY, JSON.stringify({ url, profile }));
+		const push_res = await redis.lPush(QUEUE_KEY, JSON.stringify({ url, profile }));
+
+		if (push_res == 0) {
+			res.status(500).json({
+				message: "Push to queue failed."
+			})
+		}
+
+		submissionCounter.inc()
 
 		res.status(202).json({
 			message: "Jon accepted",
@@ -47,6 +57,16 @@ redis
 		res.status(202).json({
 			message: "Jon accepted"
 		})
+	});
+
+	app.get("/metrics", async (_req: Request, res: Response) => {
+		try {
+			res.set("Content-Type", register.contentType);
+			const metrics = await register.metrics();
+			res.end(metrics);
+		} catch (err) {
+			res.status(500).end();
+		}
 	});
 
 	app.listen(PORT, () => {
