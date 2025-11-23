@@ -43,7 +43,6 @@
 
     - name: Create application database user
       tags: install
-      become: yes
       community.postgresql.postgresql_user:
         name: "{{ postgres_user }}"
         password: "{{ postgres_password }}"
