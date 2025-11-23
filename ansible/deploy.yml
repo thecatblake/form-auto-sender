@@ -101,6 +101,10 @@
       npm:
         path: "{{ app_dir }}/contact_submitter"
         production: yes
+    - name: Build app
+      command: npm run build
+      args:
+        chdir: "{{ app_dir }}/gateway"
 
     - name: Install systemd unit for gateway
       template:
