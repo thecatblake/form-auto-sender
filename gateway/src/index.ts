@@ -30,12 +30,22 @@ redis
 			return res.status(400).json({ error: "url and profile are required"})
 		}
 
-		redis.lPush(QUEUE_KEY, req.body);
+		redis.lPush(QUEUE_KEY, JSON.stringify({ url, profile }));
 
 		res.status(202).json({
 			message: "Jon accepted",
 			url,
 			profile
+		})
+	});
+
+	app.post("/submit-batch", (req: Request, res: Response) => {
+		const payloads = req.body as SubmitPayload[];
+
+		redis.lPush(QUEUE_KEY, JSON.stringify(payloads));
+
+		res.status(202).json({
+			message: "Jon accepted"
 		})
 	});
 

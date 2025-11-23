@@ -51,7 +51,6 @@
 
     - name: Create application database
       tags: install
-      become_user: postgres
       community.postgresql.postgresql_db:
         name: "{{ postgres_db_name }}"
         owner: "{{ postgres_user }}"
