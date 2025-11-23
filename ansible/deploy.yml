@@ -11,6 +11,7 @@
 
   tasks:
     - name: install packages
+      tags: install
       apt:
         name:
           - git
@@ -22,8 +23,11 @@
           - curl
         state: present
         update_cache: yes
+        cache_valid_time: 3600
+
 
     - name: Download rustup installer
+      tags: install
       become_user: deploy
       get_url:
         url: https://sh.rustup.rs
@@ -31,6 +35,7 @@
         mode: "0755"
 
     - name: Install rust
+      tags: install
       become_user: deploy
       shell: |
         /home/deploy/rustup-init.sh -y --no-modify-path
@@ -38,6 +43,7 @@
         creates: "/home/deploy/.cargo/bin/rustc"
 
     - name: mkdir app
+      tags: install
       file:
         path: "{{ app_dir }}"
         state: directory
@@ -46,6 +52,7 @@
         mode: "0755"
     
     - name: clone repo
+      tags: build
       become: yes
       become_user: deploy
       git:
@@ -55,6 +62,7 @@
         force: yes
 
     - name: build rust server
+      tags: build
       become_user: deploy
       shell: |
         export PATH="$HOME/.cargo/bin:$PATH"
@@ -64,6 +72,7 @@
         chdir: "{{ app_dir }}"
 
     - name: copy rust server to /usr/local/bin
+      tags: build
       become: yes
       copy:
         remote_src: true
@@ -74,6 +83,7 @@
         group: root
     
     - name: create systemd service for rust
+      tags: build
       copy:
         dest: /etc/systemd/system/{{ rust_server_name }}.service
         content: |
@@ -90,12 +100,14 @@
           WantedBy=multi-user.target
     
     - name: Enable and start systemd
+      tags: restart
       systemd:
         name: "{{ rust_server_name }}"
         state: restarted
         enabled: yes
 
     - name: npm install for submitter
+      tags: build
       become: yes
       become_user: deploy
       npm:
@@ -103,6 +115,7 @@
         production: no
 
     - name: npm install for gateway
+      tags: build
       become: yes
       become_user: deploy
       npm:
@@ -110,11 +123,13 @@
         production: no
 
     - name: Build gateway
+      tags: build
       command: npm run build
       args:
         chdir: "{{ app_dir }}/gateway"
 
     - name: Install systemd unit for gateway
+      tags: build
       template:
         src: "gateway.service.j2"
         dest: "/etc/systemd/system/gateway.service"
@@ -127,10 +142,12 @@
 
   handlers:
     - name: daemon-reload
+      tags: restart
       systemd:
         daemon_reload: yes
 
     - name: restart gateway
+      tags: restart
       systemd:
         name: "gateway"
         state: restarted

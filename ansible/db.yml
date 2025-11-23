@@ -16,6 +16,7 @@
 
   tasks:
     - name: Install packages for postgresql and redis
+      tags: install
       apt:
         name:
           - postgresql
@@ -32,6 +33,7 @@
         enabled: yes
 
     - name: Configure postgresql.conf (listen on localhost only)
+      tags: install
       lineinfile:
         path: "{{ postgres_conf_dir }}/postgresql.conf"
         regexp: '^#?listen_addresses\s*='
@@ -39,15 +41,18 @@
         state: present
       notify: Restart PostgreSQL
 
-    - name: Configure pg_hba.conf (local connections)
+    - name: Allow local postgres user to connect without password
+      become: yes
       lineinfile:
         path: "{{ postgres_conf_dir }}/pg_hba.conf"
-        insertafter: '^# "local" is for Unix domain socket connections only'
-        line: "local   all             all                                     md5"
+        regexp: '^local\s+all\s+postgres\s+'
+        line: 'local   all             postgres                                trust'
         state: present
       notify: Restart PostgreSQL
 
+
     - name: Create application database user
+      tags: install
       become: yes
       community.postgresql.postgresql_user:
         name: "{{ postgres_user }}"
@@ -56,6 +61,7 @@
         state: present
 
     - name: Create application database
+      tags: install
       become: yes
       community.postgresql.postgresql_db:
         name: "{{ postgres_db_name }}"
@@ -65,6 +71,7 @@
 
     # ---------- Redis ----------
     - name: Configure redis to bind on localhost
+      tags: install
       lineinfile:
         path: /etc/redis/redis.conf
         regexp: '^bind\s+'
@@ -73,6 +80,7 @@
       notify: Restart Redis
 
     - name: Configure redis supervised by systemd
+      tags: install
       lineinfile:
         path: /etc/redis/redis.conf
         regexp: '^supervised\s+'
@@ -81,6 +89,7 @@
       notify: Restart Redis
 
     - name: Ensure Redis is running and enabled
+      tags: restart
       systemd:
         name: redis-server
         state: started
@@ -88,11 +97,13 @@
 
   handlers:
     - name: Restart PostgreSQL
+      tags: restart
       systemd:
         name: postgresql
         state: restarted
 
     - name: Restart Redis
+      tags: restart
       systemd:
         name: redis-server
         state: restarted
