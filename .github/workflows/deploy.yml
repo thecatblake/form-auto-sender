@@ -38,6 +38,9 @@ jobs:
 
           [monitoring]
           ${{ secrets.EC2_HOST }} ansible_user=deploy
+
+          [db]
+          ${{ secrets.EC2_HOST }} ansible_user=deploy
           EOF
 
       - name: Run ansible playbook

@@ -1,0 +1,98 @@
+---
+- name: Setup PostgreSQL & Redis
+  hosts: app        # or monitoring。どっちでも同じホストならどちらでもOK
+  become: yes
+
+  vars:
+    postgres_version: "16"
+    postgres_db_name: "form_sender"
+    postgres_user: "form_user"
+    postgres_password: "formuseradmin"
+
+    postgres_conf_dir: "/etc/postgresql/18/main"
+
+    redis_bind: "127.0.0.1"
+    redis_port: 6379
+
+  tasks:
+    - name: Install packages for postgresql and redis
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+          - redis-server
+        state: present
+        update_cache: yes
+
+    - name: Ensure PostgreSQL is running and enabled
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Configure postgresql.conf (listen on localhost only)
+      lineinfile:
+        path: "{{ postgres_conf_dir }}/postgresql.conf"
+        regexp: '^#?listen_addresses\s*='
+        line: "listen_addresses = '127.0.0.1'"
+        state: present
+      notify: Restart PostgreSQL
+
+    - name: Configure pg_hba.conf (local connections)
+      lineinfile:
+        path: "{{ postgres_conf_dir }}/pg_hba.conf"
+        insertafter: '^# "local" is for Unix domain socket connections only'
+        line: "local   all             all                                     md5"
+        state: present
+      notify: Restart PostgreSQL
+
+    - name: Create application database user
+      become_user: postgres
+      community.postgresql.postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        role_attr_flags: "LOGIN"
+        state: present
+
+    - name: Create application database
+      become_user: postgres
+      community.postgresql.postgresql_db:
+        name: "{{ postgres_db_name }}"
+        owner: "{{ postgres_user }}"
+        encoding: "UTF8"
+        state: present
+
+    # ---------- Redis ----------
+    - name: Configure redis to bind on localhost
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind\s+'
+        line: "bind {{ redis_bind }}"
+        state: present
+      notify: Restart Redis
+
+    - name: Configure redis supervised by systemd
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^supervised\s+'
+        line: "supervised systemd"
+        state: present
+      notify: Restart Redis
+
+    - name: Ensure Redis is running and enabled
+      systemd:
+        name: redis-server
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: Restart PostgreSQL
+      systemd:
+        name: postgresql
+        state: restarted
+
+    - name: Restart Redis
+      systemd:
+        name: redis-server
+        state: restarted
