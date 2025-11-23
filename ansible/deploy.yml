@@ -95,13 +95,21 @@
         state: restarted
         enabled: yes
 
-    - name: npm install
+    - name: npm install for submitter
       become: yes
       become_user: deploy
       npm:
         path: "{{ app_dir }}/contact_submitter"
         production: yes
-    - name: Build app
+
+    - name: npm install for gateway
+      become: yes
+      become_user: deploy
+      npm:
+        path: "{{ app_dir }}/gateway"
+        production: yes
+
+    - name: Build gateway
       command: npm run build
       args:
         chdir: "{{ app_dir }}/gateway"
