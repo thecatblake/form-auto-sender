@@ -43,10 +43,14 @@ jobs:
           ${{ secrets.EC2_HOST }} ansible_user=deploy
           EOF
 
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install community.postgresql
+
       - name: Run ansible playbook
         run: |
           cd ansible
           ansible-playbook -i inventory.ini deploy.yml
           ansible-playbook -i inventory.ini monitoring.yml
+          ansible-playbook -i inventory.ini db.yml
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
