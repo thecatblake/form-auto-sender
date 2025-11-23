@@ -44,7 +44,6 @@
     - name: Create application database user
       tags: install
       become: yes
-      become_user: postgres
       community.postgresql.postgresql_user:
         name: "{{ postgres_user }}"
         password: "{{ postgres_password }}"
@@ -53,7 +52,6 @@
 
     - name: Create application database
       tags: install
-      become: yes
       become_user: postgres
       community.postgresql.postgresql_db:
         name: "{{ postgres_db_name }}"
