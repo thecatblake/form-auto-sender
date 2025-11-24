@@ -134,18 +134,10 @@
       args:
         chdir: "{{ app_dir }}/gateway"
 
-    - name: Deploy contact submitter config 
-      template:
-        src: "templates/contact_submitter.service.j2"
-        dest: "files/contact_submitter.service"
-        owner: "ubuntu"
-        group: "ubuntu"
-        mode: "0644"
-
     - name: Install systemd unit for contact submitter
       tags: build
       template:
-        src: "files/contact_submitter.service"
+        src: "templates/contact_submitter.service.j2"
         dest: "/etc/systemd/system/contact_submitter.service"
         owner: root
         group: root
