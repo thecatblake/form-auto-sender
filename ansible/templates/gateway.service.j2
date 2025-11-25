@@ -3,8 +3,8 @@ Description=Contact submitter gateway
 After=network.target
 
 [Service]
-User=ubuntu
-Group=ubuntu
+User=deploy
+Group=deploy
 Type=simple
 ExecStart=/usr/bin/node {{ app_dir }}/gateway/dist/index.js
 

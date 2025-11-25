@@ -4,8 +4,8 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-User=ubuntu
-Group=ubuntu
+User=deploy
+Group=deploy
 Type=simple
 ExecStart=/usr/bin/node {{ app_dir }}/contact_submitter/dist/worker.js
 
