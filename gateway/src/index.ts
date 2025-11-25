@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import { createClient } from "redis";
 import { discoverDuration, register, submissionCounter } from "./metrics";
 import { discover_request } from "./discover_api";
+import profileRouter from "./ profile/route";
+import submissionRouter from "./submission/route";
 
 interface SubmitPayload {
 	url: string;
@@ -34,6 +36,9 @@ redis
 .connect()
 .then(() => {
 	app.use(express.json());
+
+	app.use("/profiles", profileRouter);
+	app.use("/submission", submissionRouter);
 
 	app.get("/health", (_req: Request, res: Response) => {
 		res.status(200).json({ status: "ok" });

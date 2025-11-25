@@ -12,7 +12,7 @@ const submissionCounter = new client.Counter({
 });
 
 const discoverDuration = new client.Histogram({
-	name: "discover_request_duration",
+	name: "discover_request_duration_seconds",
 	help: "The duration of the contact discover api request",
 	buckets: [0.1, 0.5, 1, 5, 10, 15]
 });

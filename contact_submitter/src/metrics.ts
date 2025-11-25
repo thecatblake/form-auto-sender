@@ -7,15 +7,16 @@ client.collectDefaultMetrics({
 });
 
 const submissionProcessed = new client.Counter({
-	name: "submission_processed_total",
-	help: "The number of submission processed",
+  name: "submission_processed_total",
+  help: "The number of submissions processed",
 });
 
 const submissionProcessDuration = new client.Histogram({
-	name: "submission_process_duration",
-	help: "The duration of processing submission",
-	buckets: [1, 10, 15, 45, 60, 120, 180, 240]
+  name: "submission_process_duration_seconds",
+  help: "The duration of processing submissions in seconds",
+  buckets: [1, 10, 15, 45, 60, 120, 180, 240],
 });
+
 
 register.registerMetric(submissionProcessed);
 register.registerMetric(submissionProcessDuration);

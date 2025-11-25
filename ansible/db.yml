@@ -57,6 +57,14 @@
         encoding: "UTF8"
         state: present
 
+    - name: Apply SQL file
+      community.postgresql.postgresql_query:
+        db: "{{ postgres_db_name }}"
+        login_user: "{{ postgres_user }}"
+        login_password: "{{ postgres_password }}"
+        query: "{{ lookup('file', 'files/setup.sql') }}"
+
+
     # ---------- Redis ----------
     - name: Configure redis to bind on localhost
       tags: install
