@@ -28,7 +28,7 @@ async function discover_and_push(url: string, profile_id: string) {
 
 	const payloads = discover_results
 		.filter(result => result.score > 50)
-		.map(result => JSON.stringify({url: result.url, profile}));
+		.map(result => JSON.stringify({url: result.url, profile, profile_id}));
 
 	const push_res = await redis.lPush(QUEUE_KEY, payloads);
 
