@@ -1,9 +1,20 @@
 import { Router, Request, Response } from "express";
 import {
-  createSubmissionResult
+  createSubmissionResult,
+  listSubmission
 } from "./api";
 
 const router = Router();
+
+router.get("/", async (_req: Request, res: Response) => {
+  try {
+	const profiles = await listSubmission();
+	res.json(profiles);
+  } catch (err) {
+	console.error("Error listing profiles", err);
+	res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 
 router.post("/", async (req: Request, res: Response) => {

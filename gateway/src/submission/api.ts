@@ -16,6 +16,14 @@ export interface CreateSubmissionResultInput {
   result?: string;
 }
 
+export interface ListSubmissionResult {
+  profile_name: string;
+  host: string | null;
+  contact_url: string | null;
+  result: string | null;
+  created_at: Date;
+}
+
 export async function createSubmissionResult(
   input: CreateSubmissionResultInput
 ): Promise<SubmissionResult> {
@@ -36,4 +44,21 @@ export async function createSubmissionResult(
   );
 
   return res[0];
+}
+
+
+export async function listSubmission(): Promise<ListSubmissionResult[]> {
+  return await query<ListSubmissionResult>(
+    `
+    SELECT 
+      submit_profile.name AS profile_name,
+      submission_result.host,
+      submission_result.contact_url,
+      submission_result.result,
+      submission_result.created_at
+    FROM submission_result
+    INNER JOIN submit_profile
+      ON submit_profile.id = submission_result.profile_id;
+    `
+  );
 }
