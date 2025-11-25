@@ -149,64 +149,64 @@ async function consumeQueue(context: BrowserContext) {
 
 client.on("error", err => console.log("Redis Client Error", err));
 
+const WORKER_COUNT = Number(process.env.WORKERS ?? 2);
+
 client.connect()
 .then(async () => {
-	startMetricsServer(9200);
-	
-	clearPlaywrightCache();
+    startMetricsServer(9200);
 
-	const browser = await chromium.launch({
-		headless: true,
-		args: [
-			"--no-sandbox",
-			"--disable-dev-shm-usage",
-			"--disable-gpu",
-			"--disable-extensions",
-			"--disable-background-networking",
-			"--disable-background-timer-throttling",
-			"--disable-renderer-backgrounding",
-			"--mute-audio",
+    clearPlaywrightCache();
 
-			'--disk-cache-size=0',
-			'--media-cache-size=0',
-			'--disable-cache',
-			'--disable-application-cache',
-			'--disable-offline-load-stale-cache',
-			'--disable-gpu-shader-disk-cache',
+    const browser = await chromium.launch({
+        headless: true,
+        args: [
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--mute-audio",
+            '--disk-cache-size=0',
+            '--media-cache-size=0',
+            '--disable-cache',
+            '--disable-application-cache',
+            '--disable-offline-load-stale-cache',
+            '--disable-gpu-shader-disk-cache',
+            "--no-first-run",
+            "--disable-features=Translate,BackForwardCache",
+            "--disable-sync",
+        ],
+    });
 
-			"--no-first-run",
-			"--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaSessionService,InterestCohort",
-			"--disable-sync",
-			"--disable-default-apps",
-		],
-	});
+    const contexts: BrowserContext[] = [];
+    for (let i = 0; i < WORKER_COUNT; i++) {
+        const ctx = await browser.newContext({
+            ignoreHTTPSErrors: true,
+            bypassCSP: true,
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            viewport: { width: 1280, height: 720 },
+            storageState: undefined,
+            acceptDownloads: false,
+            serviceWorkers: "block",
+        });
+        contexts.push(ctx);
+    }
 
-	// ===== キャッシュ無効化コンテキスト =====
-	const context = await browser.newContext({
-		ignoreHTTPSErrors: true,
-		bypassCSP: true,
-		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-		viewport: { width: 1280, height: 720 },
-
-		// キャッシュ無効化
-		storageState: undefined,
-		acceptDownloads: false,
-		recordVideo: undefined,
-		recordHar: undefined,
-		serviceWorkers: "block",
-	});
-
-	const shutdown = async () => {
-		await browser.close();
-		await client.quit();
-		process.exit(0);
-	};
-
-	process.on("SIGINT", shutdown);
-	process.on("SIGTERM", shutdown);
-
-
-	while (true) {
-		await consumeQueue(context);
-	}
+    logger.info(`Starting ${WORKER_COUNT} workers`);
+    await Promise.all(
+        contexts.map((ctx, idx) => workerLoop(ctx, idx))
+    );
 });
+
+async function workerLoop(context: BrowserContext, workerId: number) {
+    logger.info(`worker ${workerId} started`);
+    while (true) {
+        try {
+            await consumeQueue(context);
+        } catch (e) {
+            logger.error(`Worker ${workerId} error`, e);
+        }
+    }
+}
