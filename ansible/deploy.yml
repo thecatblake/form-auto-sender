@@ -114,12 +114,22 @@
         path: "{{ app_dir }}/contact_submitter"
         production: no
 
-    - name: Run npx playwright install
+    - name: Install Playwright OS deps
+      tags: build
       become: yes
       shell: |
-        cd /var/www/app/contact_submitter
         npx playwright install-deps
+      args:
+        chdir: "{{ app_dir }}/contact_submitter"
+
+    - name: Install Playwright browsers
+      tags: build
+      become: yes
+      become_user: deploy
+      shell: |
         npx playwright install
+      args:
+        chdir: "{{ app_dir }}/contact_submitter"
 
 
     - name: npm install for gateway

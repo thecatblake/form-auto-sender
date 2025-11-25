@@ -2,7 +2,6 @@ provider "aws" {
   region = "ap-northeast-1"
 }
 
-
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -14,14 +13,20 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
+resource "aws_key_pair" "app_server" {
+  key_name   = "formautosender"
+  public_key = file("~/.ssh/deploy_ansible.pub")
+}
+
 resource "aws_instance" "app_server" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.large"
+  instance_type = "c5a.xlarge"
+  key_name      = aws_key_pair.app_server.key_name
 
   root_block_device {
-	volume_size = 50
-	volume_type = "gp3"
-	encrypted = true
+    volume_size = 50
+    volume_type = "gp3"
+    encrypted   = true
   }
 
   tags = {
