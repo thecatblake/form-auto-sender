@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { BrowserContext, chromium, Page } from "playwright";
 import { createClient } from "redis";
-import { findFormCandidates } from "./form";
+import { findFormCandidates, FormCandidate } from "./form";
 import { logger } from "./logger";
 import { fillFields, SubmitPayload } from "./mapper2";
 import { SubmitResult, waitForSuccess } from "./verifier";
@@ -41,38 +41,41 @@ function clearPlaywrightCache() {
 async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitResult> {
 	let result: SubmitResult = "fail";
 	const form_candidates = await findFormCandidates(page);
+	const top_candidates = form_candidates.filter(form => form.score = 50);
 
-	for (const form_candidate of form_candidates) {
-		try {
-			logger.info("filling a form");
-			await fillFields(form_candidate.root, payload);
-		} catch {
-			return "fill_failed";
+	if (top_candidates.length === 0)
+		return "form_not_found";
+	let form_candidate: FormCandidate = form_candidates[0];
+	
+	try {
+		logger.info("filling a form");
+		await fillFields(form_candidate.root, payload);
+	} catch {
+		return "fill_failed";
+	}
+
+	try {
+		logger.info("submitting");
+		const submitButtons = await form_candidate.root.locator(`
+			input[type="submit"],
+			input[type="button"],
+			input[type="image"],
+			button[type="submit"],
+			button
+		`).all();
+
+		for (const submitButton of submitButtons) {
+			await submitButton.click();
+
+			const submitResult = await waitForSuccess(page);
+
+			if (submitResult === "success")
+				return "success";
+
+			result = submitResult;
 		}
-
-		try {
-			logger.info("submitting");
-			const submitButtons = await form_candidate.root.locator(`
-				input[type="submit"],
-				input[type="button"],
-				input[type="image"],
-				button[type="submit"],
-				button
-			`).all();
-
-			for (const submitButton of submitButtons) {
-				await submitButton.click();
-
-				const submitResult = await waitForSuccess(page);
-
-				if (submitResult === "success")
-					return "success";
-
-				result = submitResult;
-			}
-		} catch {
-			return "submit_failed";
-		}
+	} catch {
+		return "submit_failed";
 	}
 
 	return result;
