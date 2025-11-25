@@ -72,7 +72,7 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
 
 async function reportSubmissionResult(submission: Submission, result: string) {
   try {
-    const res = await fetch(`http://localhost:3000/submissions`, {
+    const res = await fetch(`http://localhost:3000/submission`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

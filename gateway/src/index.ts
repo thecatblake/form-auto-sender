@@ -23,6 +23,9 @@ async function discover_and_push(url: string, profile_id: string) {
 
 	const profile = await getSubmitProfile(profile_id);
 
+	if (profile == null)
+		return -1;
+
 	const payloads = discover_results
 		.filter(result => result.score > 50)
 		.map(result => JSON.stringify({url: result.url, profile}));
@@ -60,10 +63,13 @@ redis
 		endTimer();
 
 		if (push_res == 0) {
-			res.status(500).json({
+			return res.status(500).json({
 				message: "Push to queue failed."
 			})
-		}
+		} else if (push_res == -1)
+			return res.status(400).json({
+				message: "Profile not found"
+			})
 
 		submissionCounter.inc(push_res);
 
