@@ -115,6 +115,7 @@ function sleep(ms: number) {
 async function consumeQueue(context: BrowserContext) {
 	const raw_submission = await client.rPop(QUEUE_KEY);
 
+	const endTimer = submissionProcessDuration.startTimer();
 	if (!raw_submission) {
 		await sleep(1000);
 		return ;
@@ -134,22 +135,22 @@ async function consumeQueue(context: BrowserContext) {
 	}
 
 	try {
-		const endTimer = submissionProcessDuration.startTimer();
 		const result = await fillAndSend(page, submission.profile);
-		endTimer();
+		
 
 		reportSubmissionResult(submission, result);
 	} catch {
 		reportSubmissionResult(submission, "fill failed");
 	} finally {
-		await page.close()
+		await page.close();
+		endTimer();
 	}
 }
 
 
 client.on("error", err => console.log("Redis Client Error", err));
 
-const WORKER_COUNT = Number(process.env.WORKERS ?? 2);
+const WORKER_COUNT = Number(process.env.WORKERS ?? 1);
 
 client.connect()
 .then(async () => {
