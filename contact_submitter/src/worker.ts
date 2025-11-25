@@ -6,7 +6,7 @@ import { findFormCandidates, FormCandidate } from "./form";
 import { logger } from "./logger";
 import { fillFields, SubmitPayload } from "./mapper2";
 import { SubmitResult, waitForSuccess } from "./verifier";
-import { startMetricsServer, submissionProcessDuration } from "./metrics";
+import { startMetricsServer, submissionProcessDuration, submissionProcessed } from "./metrics";
 
 interface Submission {
 	host: string,
@@ -143,6 +143,7 @@ async function consumeQueue(context: BrowserContext) {
 		reportSubmissionResult(submission, "fill failed");
 	} finally {
 		await page.close();
+		submissionProcessed.inc();
 		endTimer();
 	}
 }
