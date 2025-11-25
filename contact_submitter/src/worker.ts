@@ -6,7 +6,7 @@ import { findFormCandidates } from "./form";
 import { logger } from "./logger";
 import { fillFields, SubmitPayload } from "./mapper2";
 import { SubmitResult, waitForSuccess } from "./verifier";
-import { submissionProcessDuration } from "./metrics";
+import { startMetricsServer, submissionProcessDuration } from "./metrics";
 
 interface Submission {
 	host: string,
@@ -128,6 +128,8 @@ client.on("error", err => console.log("Redis Client Error", err));
 
 client.connect()
 .then(async () => {
+	startMetricsServer(9200);
+	
 	clearPlaywrightCache();
 
 	const browser = await chromium.launch({
