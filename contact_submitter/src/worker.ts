@@ -109,10 +109,8 @@ async function consumeQueue(context: BrowserContext) {
 	}
 
 	const submission = JSON.parse(raw_submission) as Submission;
-
+	const page = await context.newPage();
 	try {
-		const page = await context.newPage();
-
 		const endTimer = submissionProcessDuration.startTimer();
 		const result = await fillAndSend(page, submission.profile);
 		endTimer();
@@ -120,6 +118,8 @@ async function consumeQueue(context: BrowserContext) {
 		reportSubmissionResult(submission, result);
 	} catch {
 		reportSubmissionResult(submission, "internal error");
+	} finally {
+		await page.close()
 	}
 }
 
@@ -173,7 +173,17 @@ client.connect()
 		serviceWorkers: "block",
 	});
 
+	const shutdown = async () => {
+		await browser.close();
+		await client.quit();
+		process.exit(0);
+	};
+
+	process.on("SIGINT", shutdown);
+	process.on("SIGTERM", shutdown);
+
+
 	while (true) {
 		await consumeQueue(context);
-	}	
+	}
 });
