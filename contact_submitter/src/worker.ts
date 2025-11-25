@@ -43,27 +43,35 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
 	const form_candidates = await findFormCandidates(page);
 
 	for (const form_candidate of form_candidates) {
-		logger.info("mapping a form");
+		try {
+			logger.info("filling a form");
+			await fillFields(form_candidate.root, payload);
+		} catch {
+			return "fill_failed";
+		}
 
-		await fillFields(form_candidate.root, payload);
+		try {
+			logger.info("submitting");
+			const submitButtons = await form_candidate.root.locator(`
+				input[type="submit"],
+				input[type="button"],
+				input[type="image"],
+				button[type="submit"],
+				button
+			`).all();
 
-		const submitButtons = await form_candidate.root.locator(`
-			input[type="submit"],
-			input[type="button"],
-			input[type="image"],
-			button[type="submit"],
-			button
-		`).all();
+			for (const submitButton of submitButtons) {
+				await submitButton.click();
 
-		for (const submitButton of submitButtons) {
-			await submitButton.click();
+				const submitResult = await waitForSuccess(page);
 
-			const submitResult = await waitForSuccess(page);
+				if (submitResult === "success")
+					return "success";
 
-			if (submitResult === "success")
-				return "success";
-
-			result = submitResult;
+				result = submitResult;
+			}
+		} catch {
+			return "submit_failed";
 		}
 	}
 
@@ -110,19 +118,25 @@ async function consumeQueue(context: BrowserContext) {
 
 	const submission = JSON.parse(raw_submission) as Submission;
 	const page = await context.newPage();
+	logger.info(`submission received: ${submission.url} for ${submission.profile_id}`)
 	try {
 		await page.goto(
 			submission.url, {
 				waitUntil: "domcontentloaded",
 				timeout: 15000,
 			});
+	} catch {
+		reportSubmissionResult(submission, "goto_timeout");
+	}
+
+	try {
 		const endTimer = submissionProcessDuration.startTimer();
 		const result = await fillAndSend(page, submission.profile);
 		endTimer();
 
 		reportSubmissionResult(submission, result);
 	} catch {
-		reportSubmissionResult(submission, "internal error");
+		reportSubmissionResult(submission, "fill failed");
 	} finally {
 		await page.close()
 	}
@@ -149,7 +163,6 @@ client.connect()
 			"--disable-renderer-backgrounding",
 			"--mute-audio",
 
-			// ===== キャッシュ完全無効化 =====
 			'--disk-cache-size=0',
 			'--media-cache-size=0',
 			'--disable-cache',
@@ -157,7 +170,6 @@ client.connect()
 			'--disable-offline-load-stale-cache',
 			'--disable-gpu-shader-disk-cache',
 
-			// ===== 不要な機能無効化 =====
 			"--no-first-run",
 			"--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaSessionService,InterestCohort",
 			"--disable-sync",

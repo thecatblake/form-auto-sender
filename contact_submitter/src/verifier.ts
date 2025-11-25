@@ -1,6 +1,6 @@
 import { Page } from "playwright";
 
-export type SubmitResult = "success" | "maybe" | "fail";
+export type SubmitResult = "success" | "maybe" | "fill_failed" | "submit_failed" | "fail";
 
 const THANKS_TEXT = new RegExp([
   // JP: 送信系
