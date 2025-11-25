@@ -58,6 +58,15 @@
         role_attr_flags: "LOGIN"
         state: present
 
+    - name: Change local all all peer to md5
+      become: yes
+      lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+        regexp: '^local\s+all\s+all\s+peer$'
+        line: 'local   all             all                                     md5'
+        backup: yes
+      notify: Restart PostgreSQL
+
     - name: Create application database
       tags: install
       community.postgresql.postgresql_db:
