@@ -41,6 +41,15 @@
         state: present
       notify: Restart PostgreSQL
 
+    - name: Change postgres local auth to trust
+      become: yes
+      lineinfile:
+        path: /etc/postgresql/16/main/pg_hba.conf
+        regexp: '^local\s+all\s+postgres\s+peer'
+        line: 'local   all             postgres                                trust'
+        state: present
+        backrefs: yes
+
     - name: Create application database user
       tags: install
       community.postgresql.postgresql_user:
