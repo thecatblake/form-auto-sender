@@ -28,11 +28,12 @@ resource "aws_instance" "app_server" {
   key_name      = aws_key_pair.app_server.key_name
 
   user_data = <<-CLOUD
+    #cloud-config
     users:
       - name: deploy
         shell: /bin/bash
         groups: [sudo]
-        sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+        sudo: "ALL=(ALL) NOPASSWD:ALL"
         ssh-authorized-keys:
           - ${local.deploy_pubkey}
     write_files:
