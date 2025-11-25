@@ -23,12 +23,14 @@ async function discover_and_push(url: string, profile_id: string) {
 
 	const profile = await getSubmitProfile(profile_id);
 
+	const urlObj = new URL(url);
+
 	if (profile == null)
 		return -1;
 
 	const payloads = discover_results
 		.filter(result => result.score > 50)
-		.map(result => JSON.stringify({url: result.url, profile, profile_id}));
+		.map(result => JSON.stringify({url: result.url, profile, profile_id, host: urlObj.host}));
 
 	const push_res = await redis.lPush(QUEUE_KEY, payloads);
 
