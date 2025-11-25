@@ -114,13 +114,13 @@
         path: "{{ app_dir }}/contact_submitter"
         production: no
 
-    # - name: Run npx playwright install
-    #   become: yes
-    #   become_user: ubuntu   # Node を管理しているユーザーに合わせる
-    #   shell: |
-    #     cd /var/www/app/contact_submitter
-    #     sudo npx playwright install-deps
-    #     npx playwright install
+    - name: Run npx playwright install
+      become: yes
+      become_user: ubuntu   # Node を管理しているユーザーに合わせる
+      shell: |
+        cd /var/www/app/contact_submitter
+        npx playwright install-deps
+        npx playwright install
 
 
     - name: npm install for gateway
