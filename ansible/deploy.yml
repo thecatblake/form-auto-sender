@@ -116,7 +116,6 @@
 
     - name: Run npx playwright install
       become: yes
-      become_user: ubuntu   # Node を管理しているユーザーに合わせる
       shell: |
         cd /var/www/app/contact_submitter
         npx playwright install-deps
