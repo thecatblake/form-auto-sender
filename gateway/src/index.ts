@@ -21,11 +21,12 @@ const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
 async function discover_and_push(url: string, profile_id: string) {
 	const discover_results = await discover_request(url);
 
+	const profile = await getSubmitProfile(profile_id);
+
 	const payloads = discover_results
 		.filter(result => result.score > 50)
 		.map(result => JSON.stringify({url: result.url, profile}));
 
-	const profile = await getSubmitProfile(profile_id);
 	const push_res = await redis.lPush(QUEUE_KEY, payloads);
 
 	if (push_res == 0)
