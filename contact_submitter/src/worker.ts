@@ -83,6 +83,7 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
 
 async function reportSubmissionResult(submission: Submission, result: string) {
   try {
+	logger.info(`processed url: ${submission.url} result: ${result}`)
     const res = await fetch(`http://localhost:3000/submission`, {
       method: "POST",
       headers: {
