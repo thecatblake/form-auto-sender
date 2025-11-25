@@ -111,6 +111,11 @@ async function consumeQueue(context: BrowserContext) {
 	const submission = JSON.parse(raw_submission) as Submission;
 	const page = await context.newPage();
 	try {
+		await page.goto(
+			submission.url, {
+				waitUntil: "domcontentloaded",
+				timeout: 15000,
+			});
 		const endTimer = submissionProcessDuration.startTimer();
 		const result = await fillAndSend(page, submission.profile);
 		endTimer();

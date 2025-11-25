@@ -82,7 +82,7 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
     }
 
     const browser = await chromium.launch({
-        headless: false,
+        headless: true,
         args: [
             "--no-sandbox",
             "--disable-dev-shm-usage",
