@@ -1,6 +1,6 @@
 ---
 - name: Setup PostgreSQL & Redis
-  hosts: app        # or monitoring。どっちでも同じホストならどちらでもOK
+  hosts: app
   become: yes
 
   vars:
@@ -48,15 +48,7 @@
         regexp: '^local\s+all\s+postgres\s+peer'
         line: 'local   all             postgres                                trust'
         state: present
-        backrefs: yes
-
-    - name: Create application database user
-      tags: install
-      community.postgresql.postgresql_user:
-        name: "{{ postgres_user }}"
-        password: "{{ postgres_password }}"
-        role_attr_flags: "LOGIN"
-        state: present
+      notify: Restart PostgreSQL   # ← これも restart させておくと安心
 
     - name: Change local all all peer to md5
       become: yes
@@ -66,6 +58,18 @@
         line: 'local   all             all                                     md5'
         backup: yes
       notify: Restart PostgreSQL
+
+    - name: Restart PostgreSQL now if config changed
+      meta: flush_handlers
+
+
+    - name: Create application database user
+      tags: install
+      community.postgresql.postgresql_user:
+        name: "{{ postgres_user }}"
+        password: "{{ postgres_password }}"
+        role_attr_flags: "LOGIN"
+        state: present
 
     - name: Create application database
       tags: install
@@ -81,7 +85,6 @@
         login_user: "{{ postgres_user }}"
         login_password: "{{ postgres_password }}"
         query: "{{ lookup('file', 'files/setup.sql') }}"
-
 
     # ---------- Redis ----------
     - name: Configure redis to bind on localhost
