@@ -37,7 +37,7 @@ redis
 .then(() => {
 	app.use(express.json());
 
-	app.use("/profiles", profileRouter);
+	app.use("/profile", profileRouter);
 	app.use("/submission", submissionRouter);
 
 	app.get("/health", (_req: Request, res: Response) => {
