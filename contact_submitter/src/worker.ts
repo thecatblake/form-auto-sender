@@ -96,10 +96,15 @@ async function reportSubmissionResult(submission: Submission, result: string) {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function consumeQueue(context: BrowserContext) {
 	const raw_submission = await client.rPop(QUEUE_KEY);
 
 	if (!raw_submission) {
+		await sleep(1000);
 		return ;
 	}
 
@@ -169,6 +174,6 @@ client.connect()
 	});
 
 	while (true) {
-		consumeQueue(context);
+		await consumeQueue(context);
 	}	
 });
