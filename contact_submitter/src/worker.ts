@@ -9,8 +9,10 @@ import { SubmitResult, waitForSuccess } from "./verifier";
 import { submissionProcessDuration } from "./metrics";
 
 interface Submission {
+	host: string,
 	url: string,
-	profile: SubmitPayload
+	profile: SubmitPayload,
+	profile_id: string
 }
 
 const client = createClient();
@@ -68,6 +70,32 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
 	return result;
 }
 
+async function reportSubmissionResult(submission: Submission, result: string) {
+  try {
+    const res = await fetch(`http://localhost:3000/submissions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        profile_id: submission.profile_id,
+        host: submission.host,
+        contact_url: submission.url,
+        result,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      logger.error(
+        `Failed to report submission result: ${res.status} ${res.statusText} ${text}`
+      );
+    }
+  } catch (e) {
+    logger.error("Error reporting submission result", e);
+  }
+}
+
 async function consumeQueue(context: BrowserContext) {
 	const raw_submission = await client.rPop(QUEUE_KEY);
 
@@ -75,15 +103,18 @@ async function consumeQueue(context: BrowserContext) {
 		return ;
 	}
 
+	const submission = JSON.parse(raw_submission) as Submission;
+
 	try {
-		const submission = JSON.parse(raw_submission) as Submission;
 		const page = await context.newPage();
 
 		const endTimer = submissionProcessDuration.startTimer();
-		const result = fillAndSend(page, submission.profile);
+		const result = await fillAndSend(page, submission.profile);
 		endTimer();
+
+		reportSubmissionResult(submission, result);
 	} catch {
-		return ;
+		reportSubmissionResult(submission, "internal error");
 	}
 }
 

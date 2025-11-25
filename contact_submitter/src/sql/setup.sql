@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS submit_profile {
 CREATE TABLE IF NOT EXISTS submission_result (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     profile_id UUID,
-    target_id integer,
+    host integer,
     contact_url TEXT,
     result TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

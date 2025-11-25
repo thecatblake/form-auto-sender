@@ -3,7 +3,7 @@ import { query } from "../db";
 export interface SubmissionResult {
   id: string;
   profile_id: string;
-  target_id: number | null;
+  host: string | null;
   contact_url: string | null;
   result: string | null;
   created_at: Date;
@@ -11,7 +11,7 @@ export interface SubmissionResult {
 
 export interface CreateSubmissionResultInput {
   profile_id: string;
-  target_id?: number;
+  host?: string;
   contact_url?: string;
   result?: string;
 }
@@ -19,17 +19,17 @@ export interface CreateSubmissionResultInput {
 export async function createSubmissionResult(
   input: CreateSubmissionResultInput
 ): Promise<SubmissionResult> {
-  const { profile_id, target_id, contact_url, result } = input;
+  const { profile_id, host, contact_url, result } = input;
 
   const res = await query<SubmissionResult>(
     `
-    INSERT INTO submission_result (profile_id, target_id, contact_url, result)
+    INSERT INTO submission_result (profile_id, host, contact_url, result)
     VALUES ($1, $2, $3, $4)
-    RETURNING id, profile_id, target_id, contact_url, result, created_at
+    RETURNING id, profile_id, host, contact_url, result, created_at
     `,
     [
       profile_id,
-      target_id ?? null,
+      host ?? null,
       contact_url ?? null,
       result ?? null,
     ]

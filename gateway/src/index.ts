@@ -4,10 +4,11 @@ import { discoverDuration, register, submissionCounter } from "./metrics";
 import { discover_request } from "./discover_api";
 import profileRouter from "./ profile/route";
 import submissionRouter from "./submission/route";
+import { getSubmitProfile } from "./ profile/api";
 
 interface SubmitPayload {
 	url: string;
-	profile: Record<string, string>
+	profile_id: string
 }
 
 const app = express();
@@ -17,12 +18,14 @@ const PORT = 3000;
 const redis = createClient();
 const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
 
-async function discover_and_push(url: string, profile: Record<string, string>) {
+async function discover_and_push(url: string, profile_id: string) {
 	const discover_results = await discover_request(url);
 
 	const payloads = discover_results
 		.filter(result => result.score > 50)
-		.map(result => JSON.stringify({url: result.url, profile}))
+		.map(result => JSON.stringify({url: result.url, profile}));
+
+	const profile = await getSubmitProfile(profile_id);
 	const push_res = await redis.lPush(QUEUE_KEY, payloads);
 
 	if (push_res == 0)
@@ -45,14 +48,14 @@ redis
 	});
 
 	app.post("/submit", async (req: Request, res: Response) => {
-		const { url, profile } = req.body as SubmitPayload;
+		const { url, profile_id } = req.body as SubmitPayload;
 
-		if (!url || !profile) {
+		if (!url || !profile_id) {
 			return res.status(400).json({ error: "url and profile are required"})
 		}
 
 		const endTimer = discoverDuration.startTimer();
-		const push_res = await discover_and_push(url, profile);
+		const push_res = await discover_and_push(url, profile_id);
 		endTimer();
 
 		if (push_res == 0) {
@@ -66,7 +69,7 @@ redis
 		res.status(202).json({
 			message: "Jon accepted",
 			url,
-			profile
+			profile_id
 		})
 	});
 
@@ -75,7 +78,7 @@ redis
 
 		for (const payload of payloads) {
 			const endTimer = discoverDuration.startTimer();
-			await discover_and_push(payload.url, payload.profile);
+			await discover_and_push(payload.url, payload.profile_id);
 			endTimer();
 		}
 

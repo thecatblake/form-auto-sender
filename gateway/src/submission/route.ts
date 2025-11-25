@@ -8,7 +8,7 @@ const router = Router();
 
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { profile_id, target_id, contact_url, result } = req.body;
+    const { profile_id, host, contact_url, result } = req.body;
 
     if (!profile_id || typeof profile_id !== "string") {
       return res.status(400).json({ error: "profile_id is required" });
@@ -16,7 +16,7 @@ router.post("/", async (req: Request, res: Response) => {
 
     const submission = await createSubmissionResult({
       profile_id,
-      target_id,
+      host,
       contact_url,
       result,
     });

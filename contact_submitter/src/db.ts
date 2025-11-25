@@ -3,7 +3,7 @@ import { Pool } from "pg";
 export interface SubmissionResult {
     id: string,
     profile_name: string,
-    target_id: string,
+    host: string,
     contact_url: string,
     result: string,
     created_at: string
