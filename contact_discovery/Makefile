@@ -1,4 +1,4 @@
-NAME=contact_dicovery
+NAME=contact_discovery
 
 restart:
 	sudo systemctl daemon-reload
