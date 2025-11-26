@@ -5,6 +5,8 @@ import { discover_request } from "./discover_api";
 import profileRouter from "./ profile/route";
 import submissionRouter from "./submission/route";
 import { getSubmitProfile } from "./ profile/api";
+import { pool } from "./db";
+import { to as copyTo } from "pg-copy-streams";
 
 interface SubmitPayload {
 	url: string;
@@ -52,6 +54,42 @@ redis
 	app.get("/health", (_req: Request, res: Response) => {
 		res.status(200).json({ status: "ok" });
 	});
+
+	app.get("/result.csv", async (req: Request, res: Response) => {
+		res.setHeader("Content-Type", "text/csv; charset=utf-8");
+		res.setHeader(
+		"Content-Disposition",
+		'attachment; filename="data.csv"'
+		);
+
+		const sql = `
+		COPY (
+			SELECT * 
+			FROM submission_result
+		) TO STDOUT WITH CSV HEADER
+		`
+
+		try {
+			const pgStream = pool.query(copyTo(sql));
+
+			pgStream.on("error", (err) => {
+				console.error("pgStream error", err);
+				if (!res.headersSent) {
+					res.status(500).end("internal error");
+				} else {
+					res.destroy(err);
+				}
+			});
+
+			pgStream.on("end", () => {
+			});
+
+			pgStream.pipe(res);
+		} catch (err) {
+			console.error(err);
+			res.status(500).end("internal error");
+		}
+	})
 
 	app.post("/submit", async (req: Request, res: Response) => {
 		const { url, profile_id } = req.body as SubmitPayload;
