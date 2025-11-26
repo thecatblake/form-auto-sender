@@ -56,10 +56,11 @@ redis
 	});
 
 	app.get("/result.csv", async (req: Request, res: Response) => {
+		const client = await pool.connect();
 		res.setHeader("Content-Type", "text/csv; charset=utf-8");
 		res.setHeader(
-		"Content-Disposition",
-		'attachment; filename="data.csv"'
+			"Content-Disposition",
+			'attachment; filename="data.csv"'
 		);
 
 		const sql = `
@@ -70,7 +71,7 @@ redis
 		`
 
 		try {
-			const pgStream = pool.query(copyTo(sql));
+			const pgStream = client.query(copyTo(sql));
 
 			pgStream.on("error", (err) => {
 				console.error("pgStream error", err);
@@ -79,14 +80,17 @@ redis
 				} else {
 					res.destroy(err);
 				}
+				client.release();
 			});
 
 			pgStream.on("end", () => {
+				client.release();
 			});
 
 			pgStream.pipe(res);
 		} catch (err) {
 			console.error(err);
+			client.release();
 			res.status(500).end("internal error");
 		}
 	})
