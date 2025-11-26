@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { BrowserContext, chromium, Page } from "playwright";
+import { Browser, BrowserContext, chromium, Page } from "playwright";
 import { createClient } from "redis";
 import { findFormCandidates, FormCandidate } from "./form";
 import { logger } from "./logger";
@@ -153,13 +153,43 @@ client.on("error", err => console.log("Redis Client Error", err));
 
 const WORKER_COUNT = Number(process.env.WORKERS ?? 1);
 
+let shuttingDown = false;
+let browser: Browser | null = null;
+let contexts: BrowserContext[] = [];
+
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received, shutting down...");
+  shuttingDown = true;
+
+  try {
+    // queue 側の処理を止めたいなら
+    await client.quit().catch(() => {});
+
+    // workers のループが 1 周回り終わるのを待つイメージ
+    await Promise.all(
+      contexts.map(async (ctx) => {
+        try { await ctx.close(); } catch {}
+      })
+    );
+
+    if (browser) {
+      try { await browser.close(); } catch {}
+    }
+  } catch (e) {
+    logger.error("Error during shutdown", e);
+  } finally {
+    process.exit(0);
+  }
+});
+
+
 client.connect()
 .then(async () => {
     startMetricsServer(9200);
 
     clearPlaywrightCache();
 
-    const browser = await chromium.launch({
+    browser = await chromium.launch({
         headless: true,
         args: [
             "--no-sandbox",
@@ -182,7 +212,6 @@ client.connect()
         ],
     });
 
-    const contexts: BrowserContext[] = [];
     for (let i = 0; i < WORKER_COUNT; i++) {
         const ctx = await browser.newContext({
             ignoreHTTPSErrors: true,
@@ -202,13 +231,15 @@ client.connect()
     );
 });
 
+
 async function workerLoop(context: BrowserContext, workerId: number) {
-    logger.info(`worker ${workerId} started`);
-    while (true) {
-        try {
-            await consumeQueue(context);
-        } catch (e) {
-            logger.error(`Worker ${workerId} error`, e);
-        }
+  logger.info(`worker ${workerId} started`);
+  while (!shuttingDown) {
+    try {
+      await consumeQueue(context);
+    } catch (e) {
+      logger.error(`Worker ${workerId} error`, e);
     }
+  }
+  logger.info(`worker ${workerId} stopped`);
 }
