@@ -2,3 +2,4 @@ target/
 .terraform/
 
 .env
+.DS_Store
