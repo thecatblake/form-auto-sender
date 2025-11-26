@@ -41,7 +41,7 @@ function clearPlaywrightCache() {
 async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitResult> {
 	let result: SubmitResult = "fail";
 	const form_candidates = await findFormCandidates(page);
-	const top_candidates = form_candidates.filter(form => form.score = 50);
+	const top_candidates = form_candidates.filter(form => form.score >= 50);
 
 	if (top_candidates.length === 0)
 		return "form_not_found";
