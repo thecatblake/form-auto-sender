@@ -1,17 +1,18 @@
 import asyncio
 import aiohttp
+import csv
 
 API_URL = "http://35.78.205.169:3000/submit"
-PROFILE_ID = "e2f936bb-f38f-436f-af21-d75bdf76bc4e"
 
-CONCURRENCY = 10   # ★ 同時リクエスト数（まずは小さめに）
-RETRIES = 3       # ★ 失敗時のリトライ回数
+CSV_PATH = "urls.csv"  # ★ 読み込むCSVファイル名
+CONCURRENCY = 10  # ★ 同時リクエスト数
+RETRIES = 3  # ★ 失敗時のリトライ回数
 
 
-async def send_url(session, idx, total, url):
+async def send_url(session, idx, total, url, profile_id):
     """1つのURLに対して、リトライ付きでPOSTする"""
     payload = {
-        "profile_id": PROFILE_ID,
+        "profile_id": profile_id,
         "url": url,
     }
 
@@ -21,28 +22,40 @@ async def send_url(session, idx, total, url):
                 status = res.status
                 # 2xx を成功とみなす
                 if 200 <= status < 300:
-                    print(f"[{idx}/{total}] {url} → ✅ {status}")
+                    print(f"[{idx}/{total}] {url} ({profile_id}) → ✅ {status}")
                     return True
                 else:
-                    print(f"[{idx}/{total}] {url} → ❌ {status} (attempt {attempt})")
+                    print(
+                        f"[{idx}/{total}] {url} ({profile_id}) → ❌ {status} (attempt {attempt})"
+                    )
         except Exception as e:
-            print(f"[{idx}/{total}] {url} → 💥 error: {e} (attempt {attempt})")
+            print(
+                f"[{idx}/{total}] {url} ({profile_id}) → 💥 error: {e} (attempt {attempt})"
+            )
 
         # 失敗したら少し待ってリトライ
         await asyncio.sleep(1.0)
 
     # 全リトライ失敗
-    print(f"[{idx}/{total}] {url} → ❌ FAILED after {RETRIES} attempts")
+    print(f"[{idx}/{total}] {url} ({profile_id}) → ❌ FAILED after {RETRIES} attempts")
     return False
 
 
 async def main():
-    # URL一覧読み込み
-    with open("urls.txt", "r", encoding="utf-8") as f:
-        urls = [line.strip() for line in f if line.strip()]
+    # --- CSV 読み込み ---
+    # CSV はヘッダ付きで、少なくとも "url", "profile_id" カラムがある前提
+    rows = []
+    with open(CSV_PATH, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            url = (row.get("url") or "").strip()
+            profile_id = (row.get("id") or "").strip()
+            # 必須項目がそろっている行だけ使う
+            if url and profile_id:
+                rows.append((url, profile_id))
 
-    total = len(urls)
-    print(f"Total {total} urls.")
+    total = len(rows)
+    print(f"Total {total} rows from CSV.")
 
     # 同時接続数制限用セマフォ
     sem = asyncio.Semaphore(CONCURRENCY)
@@ -51,15 +64,14 @@ async def main():
     connector = aiohttp.TCPConnector(limit=CONCURRENCY)
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        results = []
 
-        async def runner(idx, url):
+        async def runner(idx, url, profile_id):
             async with sem:
-                return await send_url(session, idx, total, url)
+                return await send_url(session, idx, total, url, profile_id)
 
         tasks = [
-            asyncio.create_task(runner(idx, url))
-            for idx, url in enumerate(urls, 1)
+            asyncio.create_task(runner(idx, url, profile_id))
+            for idx, (url, profile_id) in enumerate(rows, 1)  # ★ 上から順に処理
         ]
 
         # どれかで例外が出ても他を止めないようにする
