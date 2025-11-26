@@ -11,7 +11,7 @@ import { startMetricsServer, submissionProcessDuration, submissionProcessed } fr
 interface Submission {
 	host: string,
 	url: string,
-	profile: SubmitPayload,
+	profile: string,
 	profile_id: string
 }
 
@@ -49,6 +49,7 @@ async function fillAndSend(page: Page, payload: SubmitPayload): Promise<SubmitRe
 	
 	try {
 		logger.info("filling a form");
+		logger.info("payload")
 		await fillFields(form_candidate.root, payload);
 	} catch {
 		return "fill_failed";
@@ -135,7 +136,8 @@ async function consumeQueue(context: BrowserContext) {
 	}
 
 	try {
-		const result = await fillAndSend(page, submission.profile);
+		const profile = JSON.parse(submission.profile)
+		const result = await fillAndSend(page, profile);
 		
 
 		reportSubmissionResult(submission, result);
