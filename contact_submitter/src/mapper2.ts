@@ -1,4 +1,5 @@
 import { Locator } from "playwright";
+import { logger } from "./logger";
 
 export type SubmitPayload = {
   // 氏名
@@ -115,91 +116,124 @@ export async function fillFields(root: Locator, payload: SubmitPayload) {
                 input_locator.evaluate(el => el.outerHTML)
             )) ?? "";
 
-        const hint = await getFieldHint(input_locator); // ← 追加
+        const hint = await getFieldHint(input_locator);
 
         let handled = false;
 
+        // --- 共通で使う小さいヘルパ ---
+        const logAndFill = async (fieldName: string, value: string | undefined) => {
+            // ログ出す（必要なら JSON にしても OK）
+            logger.info({
+                event: "fill_field",
+                field: fieldName,
+                value,
+                hint,
+                raw_input
+            });
+
+            await safe(() => input_locator.fill(value ?? ""));
+        };
+
         // --- 会社名 ---
-        if (!handled && Rx.company.test(hint) /* 👈 hint に対して判定 */) {
-            await safe(() => input_locator.fill(payload.company ?? ""));
+        if (!handled && Rx.company.test(hint)) {
+            await logAndFill("company", payload.company);
             handled = true;
         }
 
-        // --- address1（name="add" を強めに拾う）---
+        // --- address1 ---
         if (
             !handled &&
             (
-                /\bname=["']?add["']?\b/i.test(raw_input) ||    // name="add"
-                /\badd\b/.test(hint) ||                        // hint に add 単体
-                Rx.address1.test(hint)                         // 既存正規表現
+                /\bname=["']?add["']?\b/i.test(raw_input) ||
+                /\badd\b/.test(hint) ||
+                Rx.address1.test(hint)
             )
         ) {
-            await safe(() => input_locator.fill(payload.address1 ?? ""));
+            await logAndFill("address1", payload.address1);
             handled = true;
         }
 
+        // --- address2 ---
         if (!handled && Rx.address2.test(hint)) {
-            await safe(() => input_locator.fill(payload.address2 ?? ""));
+            await logAndFill("address2", payload.address2);
             handled = true;
         }
 
+        // --- 名（カナ） ---
         if (!handled && Rx.givenKana.test(hint)) {
-            await safe(() => input_locator.fill(payload.mei_kana ?? payload.furigana_mei ?? ""));
+            const v = payload.mei_kana ?? payload.furigana_mei;
+            await logAndFill("mei_kana", v);
             handled = true;
         }
 
+        // --- 名 ---
         if (!handled && Rx.given.test(hint)) {
-            await safe(() => input_locator.fill(payload.mei ?? ""));
+            await logAndFill("mei", payload.mei);
             handled = true;
         }
 
+        // --- 姓（カナ） ---
         if (!handled && Rx.familyKana.test(hint)) {
-            await safe(() => input_locator.fill(payload.sei_kana ?? payload.furigana_sei ?? ""));
+            const v = payload.sei_kana ?? payload.furigana_sei;
+            await logAndFill("sei_kana", v);
             handled = true;
         }
 
+        // --- 姓 ---
         if (!handled && Rx.family.test(hint)) {
-            await safe(() => input_locator.fill(payload.sei ?? ""));
+            await logAndFill("sei", payload.sei);
             handled = true;
         }
 
+        // --- メール ---
         if (!handled && Rx.email.test(hint)) {
-            await safe(() => input_locator.fill(payload.email ?? ""));
+            await logAndFill("email", payload.email);
             handled = true;
         }
         if (!handled && Rx.emailConfirm.test(hint)) {
-            await safe(() => input_locator.fill(payload.email ?? ""));
+            await logAndFill("email_confirm", payload.email);
             handled = true;
         }
 
+        // --- 郵便番号 ---
         if (!handled && Rx.zip.test(hint)) {
-            await safe(() =>
-                input_locator.fill(payload.zip ?? payload.post_code ?? "")
-            );
+            const v = payload.zip ?? payload.post_code;
+            await logAndFill("zip", v);
             handled = true;
         }
 
+        // --- 電話 ---
         if (!handled && Rx.phone.test(hint)) {
-            await safe(() => input_locator.fill(payload.phone ?? ""));
+            await logAndFill("phone", payload.phone);
             handled = true;
         }
 
+        // --- 都道府県 ---
         if (!handled && Rx.prefecture.test(hint)) {
-            await safe(() => input_locator.fill(payload.prefecture ?? ""));
+            await logAndFill("prefecture", payload.prefecture);
             handled = true;
         }
 
+        // --- カナ（氏名まとめ） ---
         if (!handled && Rx.kana.test(hint)) {
-            await safe(() => input_locator.fill(payload.kana ?? ""));
+            await logAndFill("kana", payload.kana);
             handled = true;
         }
 
+        // --- 氏名 ---
         if (!handled && Rx.name.test(hint)) {
-            await safe(() => input_locator.fill(payload.name ?? ""));
+            await logAndFill("name", payload.name);
             handled = true;
         }
 
+        // --- 同意チェック ---
         if (!handled && Rx.consent.test(hint)) {
+            logger.info({
+                event: "check_field",
+                field: "consent",
+                hint,
+                raw_input
+            });
             await safe(() => input_locator.check({ force: true }));
             handled = true;
         }
@@ -209,9 +243,10 @@ export async function fillFields(root: Locator, payload: SubmitPayload) {
 
     // ----- checkboxes -----
     const checkboxes = root.locator('input[type="checkbox"]');
-    const count = await safe(() => checkboxes.count()) || 0;
+    const count = (await safe(() => checkboxes.count())) || 0;
 
     for (let i = 0; i < count; i++) {
+        logger.info({ event: "check_box", index: i });
         await safe(() => checkboxes.nth(i).check());
     }
 
@@ -219,23 +254,36 @@ export async function fillFields(root: Locator, payload: SubmitPayload) {
     const selects = await root.locator('select, input[list]').all();
     for (const select of selects) {
         await safe(async () => {
-            const option = select.locator('option').first();
+            const option = select.locator("option").first();
             const value = await option.evaluate(el => el.getAttribute("value"));
-            await select.selectOption(value);
+
+            logger.info({
+                event: "select_option",
+                value
+            });
+
+            await select.selectOption(value ?? "");
         });
     }
 
     // ----- textarea -----
     const textarea_locators = await root.locator("textarea:visible").all();
     for (const textarea_locator of textarea_locators) {
-        const raw_input = await safe(() =>
-            textarea_locator.evaluate(el => el.outerHTML)
-        ) ?? "";
+        const raw_input =
+            (await safe(() =>
+                textarea_locator.evaluate(el => el.outerHTML)
+            )) ?? "";
 
         if (Rx.message.test(raw_input)) {
-            await safe(() =>
-                textarea_locator.fill(payload.message ?? "こんにちは世界")
-            );
+            const msg = payload.message ?? "こんにちは世界";
+
+            logger.info({
+                event: "fill_textarea",
+                field: "message",
+                value: msg
+            });
+
+            await safe(() => textarea_locator.fill(msg));
         }
     }
 }

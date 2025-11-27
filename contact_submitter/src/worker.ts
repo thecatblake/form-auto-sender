@@ -144,8 +144,7 @@ async function consumeQueue(context: BrowserContext) {
 	try {
 		const profile = JSON.parse(submission.profile.body);
 		const result = await fillAndSend(page, profile);
-		
-
+	
 		reportSubmissionResult(submission, result);
 	} catch {
 		reportSubmissionResult(submission, "fill failed");
