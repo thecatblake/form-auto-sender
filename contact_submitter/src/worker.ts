@@ -8,10 +8,16 @@ import { fillFields, SubmitPayload } from "./mapper2";
 import { SubmitResult, waitForSuccess } from "./verifier";
 import { startMetricsServer, submissionProcessDuration, submissionProcessed } from "./metrics";
 
+interface Profile {
+  id: string,
+  name: string,
+  body: string
+}
+
 interface Submission {
 	host: string,
 	url: string,
-	profile: string,
+	profile: Profile,
 	profile_id: string
 }
 
@@ -136,7 +142,7 @@ async function consumeQueue(context: BrowserContext) {
 	}
 
 	try {
-		const profile = JSON.parse(submission.profile)
+		const profile = JSON.parse(submission.profile.body);
 		const result = await fillAndSend(page, profile);
 		
 
