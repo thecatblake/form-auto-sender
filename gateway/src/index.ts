@@ -5,7 +5,7 @@ import { discover_request } from "./discover_api";
 import profileRouter from "./ profile/route";
 import submissionRouter from "./submission/route";
 import { getSubmitProfile } from "./ profile/api";
-import { pool } from "./db";
+import { pool, query } from "./db";
 import { to as copyTo } from "pg-copy-streams";
 
 interface SubmitPayload {
@@ -39,6 +39,19 @@ async function discover_and_push(url: string, profile_id: string) {
 	if (push_res == 0)
 		return 0;
 	return payloads.length;
+}
+
+async function get_if_submission_exists(url: string, profile_id: string) {
+	const urlObj = new URL(url);
+
+	const sql = `
+	SELECT *
+	FROM submission_result
+	WHERE host = '${urlObj.host}' and profile_id = '${profile_id}'
+	`
+
+	const res = await query(sql);
+	return res.length > 0;
 }
 
 redis.on('error', err => console.log('Redis Client Error', err));
@@ -100,6 +113,12 @@ redis
 
 		if (!url || !profile_id) {
 			return res.status(400).json({ error: "url and profile are required"})
+		}
+
+		if (await get_if_submission_exists(url, profile_id))  {
+			return res.status(409).json({
+				message: "submission exists"
+			})
 		}
 
 		const endTimer = discoverDuration.startTimer();

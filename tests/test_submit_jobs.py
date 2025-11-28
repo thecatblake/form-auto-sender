@@ -4,7 +4,7 @@ import csv
 
 API_URL = "http://35.77.221.61:3000/submit"
 
-CSV_PATH = "mix.csv"  # ★ 読み込むCSVファイル名
+CSV_PATH = "data.csv"  # ★ 読み込むCSVファイル名
 CONCURRENCY = 10  # ★ 同時リクエスト数
 RETRIES = 3  # ★ 失敗時のリトライ回数
 
