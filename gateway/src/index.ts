@@ -82,8 +82,10 @@ redis
 
 		const sql = `
 		COPY (
-			SELECT * 
+			SELECT host, contact_url, submit_profile.name, result, submission_result.created_at
 			FROM submission_result
+			INNER JOIN submit_profile
+			ON submission_result.profile_id = submit_profile.id
 		) TO STDOUT WITH CSV HEADER
 		`
 
