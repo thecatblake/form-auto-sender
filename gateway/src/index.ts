@@ -34,7 +34,10 @@ async function discover_and_push(url: string, profile_id: string) {
 		.filter(result => result.score > 50)
 		.map(result => JSON.stringify({url: result.url, profile, profile_id, host: urlObj.host}));
 
-	const push_res = await redis.lPush(QUEUE_KEY, payloads);
+	if (payloads.length == 0)
+		return 0;
+
+	const push_res = await redis.lPush(QUEUE_KEY, payloads[0]);
 
 	if (push_res == 0)
 		return 0;
