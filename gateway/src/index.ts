@@ -41,17 +41,18 @@ async function discover_and_push(url: string, profile_id: string) {
 	return payloads.length;
 }
 
-async function get_if_submission_exists(url: string, profile_id: string) {
-	const urlObj = new URL(url);
+async function get_if_submission_exists(url: string, profile_id: string): Promise<boolean> {
+  const urlObj = new URL(url);
 
-	const sql = `
-	SELECT *
-	FROM submission_result
-	WHERE host = '${urlObj.host}' and profile_id = '${profile_id}'
-	`
+  const sql = `
+    SELECT 1
+    FROM submission_result
+    WHERE host = $1 AND profile_id = $2
+    LIMIT 1
+  `;
 
-	const res = await query(sql);
-	return res.length > 0;
+  const rows = await query<{ exists: number }>(sql, [urlObj.host, profile_id]);
+  return rows.length > 0;
 }
 
 redis.on('error', err => console.log('Redis Client Error', err));
