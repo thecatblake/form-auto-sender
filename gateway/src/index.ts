@@ -20,6 +20,24 @@ const PORT = 3000;
 const redis = createClient();
 const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
 
+function reportConctactNotFound(profile_id: string, host: string) {
+  try {
+    fetch(`http://localhost:3000/submission`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        profile_id,
+        host,
+        contact_url: "",
+        result: "not_found",
+      }),
+    });
+  } catch (e) {
+  }
+}
+
 async function discover_and_push(url: string, profile_id: string) {
 	const discover_results = await discover_request(url);
 
@@ -34,8 +52,10 @@ async function discover_and_push(url: string, profile_id: string) {
 		.filter(result => result.score > 50)
 		.map(result => JSON.stringify({url: result.url, profile, profile_id, host: urlObj.host}));
 
-	if (payloads.length == 0)
+	if (payloads.length == 0) {
+		reportConctactNotFound(profile_id, urlObj.host);
 		return 0;
+	}
 
 	const push_res = await redis.lPush(QUEUE_KEY, payloads[0]);
 
@@ -132,7 +152,7 @@ redis
 		endTimer();
 
 		if (push_res == 0) {
-			return res.status(500).json({
+			return res.status(404).json({
 				message: "Push to queue failed."
 			})
 		} else if (push_res == -1)
