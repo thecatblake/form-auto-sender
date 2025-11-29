@@ -1,0 +1,10 @@
+[Unit]
+Description=StreamX Importer - index job
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ app_dir }}/streamx_importer
+ExecStart=/usr/bin/node dist/index.js
+User=deploy
+Group=deploy
+Environment=NODE_ENV=production

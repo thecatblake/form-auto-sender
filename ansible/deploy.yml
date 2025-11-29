@@ -189,6 +189,54 @@
         - daemon-reload
         - restart gateway
 
+    - name: Install systemd unit for streamx_importer index
+      tags: build
+      template:
+        src: "templates/streamx_importer_index.service.j2"
+        dest: "/etc/systemd/system/streamx_importer_index.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - daemon-reload
+
+    - name: Install systemd timer for streamx_importer index
+      tags: build
+      template:
+        src: "templates/streamx_importer_index.timer.j2"
+        dest: "/etc/systemd/system/streamx_importer_index.timer"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - daemon-reload
+        - enable streamx_importer index timer
+
+
+    - name: Install systemd unit for streamx_importer report
+      tags: build
+      template:
+        src: "templates/streamx_importer_report.service.j2"
+        dest: "/etc/systemd/system/streamx_importer_report.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - daemon-reload
+
+    - name: Install systemd timer for streamx_importer report
+      tags: build
+      template:
+        src: "templates/streamx_importer_report.timer.j2"
+        dest: "/etc/systemd/system/streamx_importer_report.timer"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - daemon-reload
+        - enable streamx_importer report timer
+
+
   handlers:
     - name: daemon-reload
       tags: restart
@@ -207,4 +255,16 @@
       systemd:
         name: "contact_submitter"
         state: restarted
+        enabled: yes
+
+    - name: enable streamx_importer index timer
+      systemd:
+        name: "streamx_importer_index.timer"
+        state: started
+        enabled: yes
+
+    - name: enable streamx_importer report timer
+      systemd:
+        name: "streamx_importer_report.timer"
+        state: started
         enabled: yes

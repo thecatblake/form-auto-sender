@@ -1,0 +1,11 @@
+[Unit]
+Description=Run StreamX report job every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=streamx_importer_report.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

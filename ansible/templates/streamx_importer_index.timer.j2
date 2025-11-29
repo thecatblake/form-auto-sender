@@ -1,0 +1,11 @@
+[Unit]
+Description=Run StreamX index job every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=streamx_importer_index.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

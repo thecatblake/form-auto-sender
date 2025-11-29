@@ -77,7 +77,7 @@ async function submit_job(url: string, profile: SubmitProfile) {
 	const payloads = discover_results
 		.filter(result => result.score > 50)
 		.map(result =>  
-			JSON.stringify({url: result.url, profile: submit_to_worker_profile(profile), host: urlObj.host, set_result: true})
+			JSON.stringify({streamx_profile_id: profile.id, url: result.url, profile: submit_to_worker_profile(profile), host: urlObj.host, set_result: true})
 		);
 
 	if (payloads.length == 0) {
