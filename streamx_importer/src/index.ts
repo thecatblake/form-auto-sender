@@ -29,6 +29,29 @@ interface StreamXTarget {
 
 type StreamxRes = Pagination<StreamXTarget>;
 
+interface WorkerProfile {
+  id: string,
+  name: string,
+  body: string
+}
+
+interface WorkerSubmission {
+	host: string,
+	url: string,
+	profile: WorkerProfile,
+	profile_id: string,
+  	set_result?: boolean
+}
+
+function submit_to_worker_profile(profile: SubmitProfile): WorkerProfile{
+	return {
+		id: profile.id.toString(),
+		name: profile.name,
+		body: JSON.stringify(profile.data)
+	}
+}
+
+
 async function* iterate_over_streamx() {
 	let page: StreamxRes | null;
 	let page_num = 1;
@@ -53,7 +76,9 @@ async function submit_job(url: string, profile: SubmitProfile) {
 
 	const payloads = discover_results
 		.filter(result => result.score > 50)
-		.map(result => JSON.stringify({url: result.url, profile, host: urlObj.host, set_result: true}));
+		.map(result =>  
+			JSON.stringify({url: result.url, profile: submit_to_worker_profile(profile), host: urlObj.host, set_result: true})
+		);
 
 	if (payloads.length == 0) {
 		return 0;
