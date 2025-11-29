@@ -15,7 +15,7 @@ interface FormResult {
 }
 
 interface StreamxSubmission {
-	target: number,
+	target_id: number,
 	payload: Record<string, string>,
 	status: "success" | "failed" | "pending"
 }
@@ -26,7 +26,7 @@ function sleep(ms: number) {
 
 async function submitResult(result: FormResult) {
 	const payload: StreamxSubmission = {
-		target: Number(result.streamx_profile_id),
+		target_id: Number(result.streamx_profile_id),
 		payload: result.profile,
 		status: result.result === "success" ? "success" : "failed"
 	};
@@ -43,7 +43,7 @@ async function submitResult(result: FormResult) {
 	if (!res.ok) {
 		console.error("StreamX submission failed", res.status, await res.text());
 	} else {
-		console.log("StreamX submission OK");
+		console.log(`Reported ${result.streamx_profile_id} ${result.result}`);
 	}
 
 	return res;
