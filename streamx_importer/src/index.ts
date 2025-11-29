@@ -53,7 +53,7 @@ async function submit_job(url: string, profile: SubmitProfile) {
 
 	const payloads = discover_results
 		.filter(result => result.score > 50)
-		.map(result => JSON.stringify({url: result.url, profile, host: urlObj.host}));
+		.map(result => JSON.stringify({url: result.url, profile, host: urlObj.host, save_result: true}));
 
 	if (payloads.length == 0) {
 		return 0;

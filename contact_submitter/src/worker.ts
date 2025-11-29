@@ -18,11 +18,13 @@ interface Submission {
 	host: string,
 	url: string,
 	profile: Profile,
-	profile_id: string
+	profile_id: string,
+  set_result?: boolean
 }
 
 const client = createClient();
 const QUEUE_KEY = process.env.QUEUE_KEY ?? "contact_submission";
+const RESULT_KEY = process.env.RESULT_KEY ?? "contact_result";
 
 function clearPlaywrightCache() {
 	try {
@@ -112,6 +114,10 @@ async function reportSubmissionResult(submission: Submission, result: string) {
     }
   } catch (e) {
     logger.error("Error reporting submission result", e);
+  }
+
+  if (submission.set_result ?? false) {
+    client.rPush(RESULT_KEY, JSON.stringify({...submission, result}));
   }
 }
 
