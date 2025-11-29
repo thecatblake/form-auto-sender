@@ -140,6 +140,13 @@
         path: "{{ app_dir }}/gateway"
         production: no
 
+    - name: npm install for streamx_importer
+      tags: build
+      become: yes
+      become_user: deploy
+      npm:
+        path: "{{ app_dir }}/streamx_importer"
+
     - name: Build contact submitter
       tags: build
       command: npm run build
@@ -151,6 +158,12 @@
       command: npm run build
       args:
         chdir: "{{ app_dir }}/gateway"
+
+    - name: Build streamx_importer
+      tags: build
+      command: npm run build
+      args:
+        chdir: "{{ app_dir }}/streamx_importer"
 
     - name: Install systemd unit for contact submitter
       tags: build

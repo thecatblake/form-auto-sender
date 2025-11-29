@@ -155,6 +155,16 @@ async function consumeQueue(context: BrowserContext) {
 	}
 }
 
+function isBusinessHoursJST() {
+  const now = new Date();
+
+  const jst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+
+  const hour = jst.getUTCHours();
+
+  return hour >= 9 && hour < 18;
+}
+
 
 client.on("error", err => console.log("Redis Client Error", err));
 
@@ -242,6 +252,9 @@ client.connect()
 async function workerLoop(context: BrowserContext, workerId: number) {
   logger.info(`worker ${workerId} started`);
   while (!shuttingDown) {
+    if (!isBusinessHoursJST())
+      await sleep(10000);
+
     try {
       await consumeQueue(context);
     } catch (e) {
