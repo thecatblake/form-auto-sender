@@ -93,14 +93,26 @@ async function submit_job(url: string, profile: SubmitProfile, target_id: number
 	return payloads.length;
 }
 
-redis
-.connect()
-.then(async () => {
-	for await (const result of iterate_over_streamx()) {
-		const data = result.profile.data;
 
-		if (data.email === "k222ryousuke@gmail.com") {
-			submit_job(`https://${result.host}`, result.profile, result.id);
-		}
-	}
+async function main() {
+  await redis.connect();
+
+  try {
+    for await (const result of iterate_over_streamx()) {
+      const data = result.profile.data;
+
+      if (data.email === "k222ryousuke@gmail.com") {
+        await submit_job(`https://${result.host}`, result.profile, result.id);
+      }
+    }
+
+    console.log("all submissions finished");
+  } finally {
+    await redis.quit();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });

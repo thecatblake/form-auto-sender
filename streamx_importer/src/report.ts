@@ -18,17 +18,12 @@ interface StreamxSubmission {
   status: "success" | "failed" | "pending";
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function submitResult(result: FormResult) {
   const payload: StreamxSubmission = {
     target_id: Number(result.streamx_profile_id),
     payload: result.profile,
-    status: result.result === "success" ? "success" : "failed"
+    status: result.result === "success" ? "success" : "failed",
   };
-
 
   const res = await fetch("https://x.stream-data.co.jp/backend/export/submissions/", {
     method: "POST",
@@ -48,7 +43,7 @@ async function submitResult(result: FormResult) {
   return res;
 }
 
-async function consumeQueue() {
+async function consumeOne() {
   const raw = await client.lPop(RESULT_KEY);
   if (!raw) return false;
 
@@ -57,46 +52,25 @@ async function consumeQueue() {
   return true;
 }
 
-// ----------------------------
-// Graceful Shutdown Support
-// ----------------------------
-let shouldStop = false;
-
-function setupGracefulShutdown() {
-  const shutdown = (signal: string) => {
-    console.log(`\nReceived ${signal}. Gracefully shutting down...`);
-    shouldStop = true;
-  };
-
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-}
-
-async function mainLoop() {
-  setupGracefulShutdown();
-
+async function main() {
   await client.connect();
-  console.log("Worker started.");
+  console.log("Reporter started.");
 
   while (true) {
-    if (shouldStop) {
-      const hasJob = await consumeQueue();
-      if (!hasJob) break;       
-      continue;           
-    }
-
     try {
-      const hasJob = await consumeQueue();
-      if (!hasJob) await sleep(1000);
+      const hasJob = await consumeOne();
+      if (!hasJob) break;
     } catch (e) {
-      console.error(e);
+      console.error("Error while consuming:", e);
     }
   }
 
-  console.log("Queue drained. Closing Redis...");
+  console.log("Queue empty. Closing Redis...");
   await client.quit();
   console.log("Shutdown complete.");
-  process.exit(0);
 }
 
-mainLoop();
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
