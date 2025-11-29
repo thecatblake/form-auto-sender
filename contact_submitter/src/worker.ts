@@ -136,7 +136,7 @@ async function consumeQueue(context: BrowserContext) {
 
 	const submission = JSON.parse(raw_submission) as Submission;
 	const page = await context.newPage();
-	logger.info(`submission received: ${submission.url} for ${submission.profile_id}`)
+	// logger.info(`submission received: ${submission.url} for ${submission.profile_id}`)
 	try {
 		await page.goto(
 			submission.url, {
@@ -148,6 +148,8 @@ async function consumeQueue(context: BrowserContext) {
 	}
 
 	try {
+
+    logger.info(submission.profile);
 		const profile = JSON.parse(submission.profile.body);
 		const result = await fillAndSend(page, profile);
 	

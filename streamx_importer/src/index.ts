@@ -67,7 +67,7 @@ async function* iterate_over_streamx() {
 	} while (next_url);
 }
 
-async function submit_job(url: string, profile: SubmitProfile) {
+async function submit_job(url: string, profile: SubmitProfile, target_id: number) {
 	const discover_results = await discover_request(url);
 	const urlObj = new URL(url);
 
@@ -77,7 +77,7 @@ async function submit_job(url: string, profile: SubmitProfile) {
 	const payloads = discover_results
 		.filter(result => result.score > 50)
 		.map(result =>  
-			JSON.stringify({streamx_profile_id: profile.id, url: result.url, profile: submit_to_worker_profile(profile), host: urlObj.host, set_result: true})
+			JSON.stringify({streamx_profile_id: target_id, url: result.url, profile: submit_to_worker_profile(profile), host: urlObj.host, set_result: true})
 		);
 
 	if (payloads.length == 0) {
@@ -100,7 +100,7 @@ redis
 		const data = result.profile.data;
 
 		if (data.email === "k222ryousuke@gmail.com") {
-			submit_job(`https://${result.host}`, result.profile);
+			submit_job(`https://${result.host}`, result.profile, result.id);
 		}
 	}
 });

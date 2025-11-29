@@ -29,6 +29,7 @@ async function submitResult(result: FormResult) {
     status: result.result === "success" ? "success" : "failed"
   };
 
+
   const res = await fetch("https://x.stream-data.co.jp/backend/export/submissions/", {
     method: "POST",
     headers: {
@@ -39,7 +40,7 @@ async function submitResult(result: FormResult) {
   });
 
   if (!res.ok) {
-    console.error("StreamX submission failed", res.status, await res.text());
+    console.log("StreamX submission failed", res.status, await res.text());
   } else {
     console.log(`Reported ${result.streamx_profile_id} ${result.result}`);
   }
@@ -78,11 +79,10 @@ async function mainLoop() {
   console.log("Worker started.");
 
   while (true) {
-    // shutdown 要求が来たら キューが空になったら終了
     if (shouldStop) {
       const hasJob = await consumeQueue();
-      if (!hasJob) break;       // キューが空 → 終了へ
-      continue;                 // まだキューにジョブ → ループ継続
+      if (!hasJob) break;       
+      continue;           
     }
 
     try {
