@@ -101,7 +101,7 @@ async function main() {
     for await (const result of iterate_over_streamx()) {
       const data = result.profile.data;
 
-      if (data.email === "k222ryousuke@gmail.com") {
+      if (data.email === "k222ryousuke@gmail.com" || data.email === "yuki_okoshi2@stream-data.co.jp") {
         await submit_job(`https://${result.host}`, result.profile, result.id);
       }
     }
